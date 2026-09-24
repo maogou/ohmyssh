@@ -58,7 +58,7 @@ func TestBrowserFilterTracksTerminalWidth(t *testing.T) {
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 10})
 	narrow := updated.(browserModel)
 
-	if got, want := narrow.filter.Width, filterWidth(40); got != want {
+	if got, want := narrow.filter.Width, filterBoxWidth(40); got != want {
 		t.Errorf("filter width after resize = %d, want %d", got, want)
 	}
 	if got := narrow.View(); !strings.Contains(got, "ilter by name") {
@@ -377,14 +377,21 @@ func TestBrowserTableDropsColumnsWhenNarrow(t *testing.T) {
 // 12 up in TestFileViewFrameIsExactlyTheTerminalWidth.
 func TestBrowserFrameIsExactlyTheTerminalWidth(t *testing.T) {
 	for width := 22; width <= 200; width++ {
-		m := newBrowserModel(BrowserOptions{Hosts: testHosts()})
-		updated, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
-		view := updated.(browserModel).View()
+		// Both states of the filter box. Nothing typed, it draws the placeholder
+		// and is exactly the width it was given; with text in it, bubbles draws
+		// the cursor cell on top of its own padding and the box is a column wider
+		// than that — which is the case that used to run a column past the edge.
+		for _, query := range []string{"", "db", "a query long enough to scroll the box"} {
+			m := newBrowserModel(BrowserOptions{Hosts: testHosts()})
+			m.filter.SetValue(query)
+			updated, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
+			view := updated.(browserModel).View()
 
-		for i, line := range strings.Split(view, "\n") {
-			if got := lipgloss.Width(line); got > width {
-				t.Fatalf("width %d: line %d is %d columns, %d past the edge:\n%s",
-					width, i, got, got-width, view)
+			for i, line := range strings.Split(view, "\n") {
+				if got := lipgloss.Width(line); got > width {
+					t.Fatalf("width %d, filter %q: line %d is %d columns, %d past the edge:\n%s",
+						width, query, i, got, got-width, view)
+				}
 			}
 		}
 	}

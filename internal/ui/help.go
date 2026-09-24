@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/maogou/ohmyssh/internal/i18n"
 )
 
 // The help screen is the key bar written out in full. The bar is a budget: it
@@ -43,53 +46,55 @@ const (
 // the cursor, what a keystroke does to the filter, then what can be done to the
 // host under it.
 func (m browserModel) listHelp() []binding {
+	messages := i18n.M()
 	help := []binding{
-		{"enter", "connect to the host under the cursor"},
-		{"↑↓", "move the cursor"},
-		{"pgup pgdown", "a page of hosts at a time"},
-		{"home end", "the first and the last host"},
-		{"type", "filter by name, host, user or tag"},
-		{"esc", "clear the filter, or quit when it is already empty"},
-		{"q", "quit"},
-		{"ctrl+c", "quit from anywhere, whatever is on screen"},
+		{"enter", messages.HelpConnect},
+		{"↑↓", messages.HelpMove},
+		{"pgup pgdown", messages.HelpPageHosts},
+		{"home end", messages.HelpEndsHosts},
+		{"type", messages.HelpType},
+		{"esc", messages.HelpEsc},
+		{"q", messages.HelpQuit},
+		{"ctrl+c", messages.HelpQuitAnywhere},
 	}
 	if m.add != nil {
-		hint := "add a host"
+		hint := messages.HelpAdd
 		if m.hostsFile != "" {
-			hint += ", written to " + abbreviated(m.hostsFile)
+			hint = fmt.Sprintf(messages.HelpAddWrittenTo, abbreviated(m.hostsFile))
 		}
 		help = append(help, binding{"A", hint})
 	}
 	if m.remove != nil {
-		help = append(help, binding{"X", "delete the host under the cursor, after asking"})
+		help = append(help, binding{"X", messages.HelpDelete})
 	}
 	if m.remote != nil {
 		// The bar has room for "U/D files" and no more, so which of the two keys
 		// takes which pane is said here and nowhere else. This is the longest hint
 		// in the table: a word more and an 80-column terminal cuts the pane off
 		// the end of it, which is the part the row exists to name.
-		help = append(help, binding{"U/D", "open the file view on it: U the local pane, D the remote one"})
+		help = append(help, binding{"U/D", messages.HelpFiles})
 	}
-	return append(help, binding{"?", "this list of keys"})
+	return append(help, binding{"?", messages.HelpTheseKeys})
 }
 
 // filesHelp is every key the file view answers to. The bindings that are not in
 // its bar are here too, since the help is read for the keys a user has not
 // found rather than for the ones they have.
 func filesHelp() []binding {
+	m := i18n.M()
 	return []binding{
-		{"tab", "switch panes"},
-		{"↑↓ k j", "move the cursor"},
-		{"pgup pgdown", "a page of entries at a time"},
-		{"g G home end", "the first and the last entry"},
-		{"enter", "walk into a directory; send a file to the other pane"},
-		{"c", "send the entry whole, directory or not"},
-		{"← h backspace", "up to the parent directory"},
-		{"/", "filter the pane that has the keyboard"},
-		{"r", "read that pane's directory again"},
-		{"esc", "cancel the transfer, clear the filter, then leave the view"},
-		{"ctrl+c", "quit from anywhere, whatever is on screen"},
-		{"?", "this list of keys"},
+		{"tab", m.HelpTab},
+		{"↑↓ k j", m.HelpMoveEntries},
+		{"pgup pgdown", m.HelpPageEntries},
+		{"g G home end", m.HelpEndsEntries},
+		{"enter", m.HelpEnterEntry},
+		{"c", m.HelpCopyEntry},
+		{"← h backspace", m.HelpParent},
+		{"/", m.HelpFind},
+		{"r", m.HelpReload},
+		{"esc", m.HelpEscFiles},
+		{"ctrl+c", m.HelpQuitAnywhere},
+		{"?", m.HelpTheseKeys},
 	}
 }
 
@@ -105,9 +110,10 @@ func (m browserModel) helpBindings() []binding {
 // is what leaves anything in this program, and ? is what the user pressed to
 // get here and is the first thing they are likely to press again.
 func helpFooterSegments() []binding {
+	m := i18n.M()
 	return []binding{
-		{"esc", "close"},
-		{"?", "close"},
+		{"esc", m.HelpClose},
+		{"?", m.HelpClose},
 	}
 }
 
@@ -129,7 +135,8 @@ func (m browserModel) helpView() string {
 // carries at its own right-hand end: the files the hosts came from, or the
 // address the panes are open on.
 func (m browserModel) helpHeader(width int) string {
-	left := titleStyle.Render("ohmyssh") + "  " + countStyle.Render("keys · "+m.helpSubject())
+	left := titleStyle.Render("ohmyssh") + "  " +
+		countStyle.Render(fmt.Sprintf(i18n.M().HelpKeys, m.helpSubject()))
 	return headerLine(left, m.helpNote(), width)
 }
 
@@ -137,9 +144,9 @@ func (m browserModel) helpHeader(width int) string {
 // uses for itself.
 func (m browserModel) helpSubject() string {
 	if m.helpFor == modeFiles {
-		return "file view"
+		return i18n.M().HelpFileView
 	}
-	return "host list"
+	return i18n.M().HelpHostList
 }
 
 // helpNote is the note at the right-hand end of the header, which for the file

@@ -8,7 +8,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/maogou/ohmyssh/internal/config"
+	"github.com/maogou/ohmyssh/internal/i18n"
 )
 
 // AddHostFunc writes a host the user filled in and returns the hosts as they
@@ -44,35 +46,37 @@ type formField struct {
 	placeholder string
 }
 
-var formLabels = [formFields]formField{
-	formAlias: {"alias", "required; the name you type"},
-	formHost:  {"host", "address; the alias when empty"},
-	formUser:  {"user", "login name; yours when empty"},
-	formPort:  {"port", "22"},
-	formTags:  {"tags", "prod, web"},
+// formLabels is the form's fields in the language that is installed. It is read
+// on every frame rather than kept in a package variable, because the labels are
+// words and the language is only decided at startup.
+func formLabels() [formFields]formField {
+	m := i18n.M()
+	return [formFields]formField{
+		formAlias: {m.FormAlias, m.FormAliasPlaceholder},
+		formHost:  {m.FormHost, m.FormHostPlaceholder},
+		formUser:  {m.FormUser, m.FormUserPlaceholder},
+		formPort:  {m.FormPort, m.FormPortPlaceholder},
+		formTags:  {m.FormTags, m.FormTagsPlaceholder},
+	}
 }
 
 // formLabelWidth is the column the labels are padded to, measured from the
 // labels themselves so that a longer one cannot silently push the values out of
-// line.
-var formLabelWidth = func() int {
+// line. It is measured rather than fixed for the same reason it cannot be a
+// constant: 名称 and NAME are not the same width, and neither are the labels of
+// the next language.
+func formLabelWidth() int {
 	width := 0
-	for _, field := range formLabels {
+	for _, field := range formLabels() {
 		width = max(width, lipgloss.Width(field.label))
 	}
 	return width
-}()
+}
 
 const (
 	// formGap is the space between the label column and the value, wide enough to
 	// read as a gap rather than as part of either.
 	formGap = 2
-	// formValueSpare is a column left unused at the right edge of a field. A text
-	// input draws its cursor cell on top of the padding it worked out from its own
-	// width, so its view is one column wider than the width it was given — and a
-	// line one column past the edge of the frame wraps, taking the frame's height
-	// with it.
-	formValueSpare = 1
 	// formCharLimit bounds one field. It is generous for a host name or a login,
 	// and far short of anything that would have to be written out carefully.
 	formCharLimit = 200
@@ -90,7 +94,7 @@ type hostForm struct {
 // keyboard on the first field.
 func newHostForm(contentWidth int) hostForm {
 	f := hostForm{}
-	for i, field := range formLabels {
+	for i, field := range formLabels() {
 		input := textinput.New()
 		// The label column is this form's prompt; the one bubbles draws by
 		// default would be two columns the width was not counted with.
@@ -111,7 +115,7 @@ func newHostForm(contentWidth int) hostForm {
 // input sizes its own scrolling window from its Width, so it has to be told
 // rather than measured.
 func (f *hostForm) resize(contentWidth int) {
-	valueWidth := max(contentWidth-rowIndent-formLabelWidth-formGap-formValueSpare, 1)
+	valueWidth := max(contentWidth-rowIndent-formLabelWidth()-formGap-cursorCellSpare, 1)
 	for i := range f.inputs {
 		f.inputs[i].Width = valueWidth
 	}
@@ -200,7 +204,7 @@ func (f hostForm) line(i int) string {
 		marker, label = rowMarker, cursorStyle
 	}
 	return margin + marker +
-		label.Render(padTo(formLabels[i].label, formLabelWidth, false)) +
+		label.Render(padTo(formLabels()[i].label, formLabelWidth(), false)) +
 		strings.Repeat(" ", formGap) + f.inputs[i].View()
 }
 
@@ -208,9 +212,10 @@ func (f hostForm) line(i int) string {
 // survive a narrow terminal, so it is first; ctrl+c is not listed because the
 // bar cannot wrap and a form is not where it is looked for.
 func formFooterSegments() []binding {
+	m := i18n.M()
 	return []binding{
-		{"enter", "save"},
-		{"tab", "field"},
-		{"esc", "cancel"},
+		{"enter", m.HintSave},
+		{"tab", m.HintField},
+		{"esc", m.HintCancel},
 	}
 }

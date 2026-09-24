@@ -4,30 +4,23 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/pkg/errno"
 	"github.com/maogou/ohmyssh/internal/service"
 	"github.com/urfave/cli/v3"
 )
 
 func forgetCommand(credentials service.CredentialService) *cli.Command {
+	m := i18n.M()
 	return &cli.Command{
-		Name:      "forget",
-		Usage:     "Delete a saved password",
-		ArgsUsage: "[host]",
-		Description: `Delete the password ohmyssh saved for a host.
-
-Connecting saves a password once it works, so that later connections do not ask
-for one. forget is the undo:
-
-  ohmyssh forget web1        forget the password for web1
-  ohmyssh forget --all       forget every saved password
-  ohmyssh forget             list the hosts with a saved password
-
-Saved passwords live in an encrypted file; run --log-level debug to see where.`,
+		Name:        "forget",
+		Usage:       m.ForgetUsage,
+		ArgsUsage:   "[host]",
+		Description: m.ForgetDescription,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "all",
-				Usage: "forget every saved password",
+				Usage: m.ForgetAllUsage,
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
@@ -36,7 +29,7 @@ Saved passwords live in an encrypted file; run --log-level debug to see where.`,
 				if err != nil {
 					return err
 				}
-				fmt.Printf("forgot %d saved password(s)\n", removed)
+				fmt.Printf(i18n.M().ForgotAll+"\n", removed)
 				return nil
 			}
 
@@ -49,9 +42,9 @@ Saved passwords live in an encrypted file; run --log-level debug to see where.`,
 				return err
 			}
 			if !removed {
-				return exit(errno.NewExit(errno.CodeError, fmt.Sprintf("no saved password for %s", key)))
+				return exit(errno.NewExit(errno.CodeError, fmt.Sprintf(i18n.M().NoSavedPassword, key)))
 			}
-			fmt.Printf("forgot saved password for %s\n", key)
+			fmt.Printf(i18n.M().ForgotOne+"\n", key)
 			return nil
 		},
 	}

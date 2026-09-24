@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/maogou/ohmyssh/internal/config"
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/sshclient"
 )
 
@@ -212,12 +213,12 @@ type filesModel struct {
 // window, and every line of the frame moves.
 func newFilesModel(host config.SSHHost, width, height int, focus paneSide) filesModel {
 	filter := textinput.New()
-	filter.Placeholder = "filter this pane"
+	filter.Placeholder = i18n.M().PaneFilterPlaceholder
 	filter.Prompt = filterPrompt
 	filter.PromptStyle = cursorStyle
 	filter.TextStyle = nameStyle
 	filter.Cursor.Style = cursorStyle
-	filter.Width = filterWidth(width)
+	filter.Width = filterBoxWidth(width)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m := filesModel{
@@ -253,7 +254,7 @@ func (m filesModel) openCmd(open RemoteSessionFunc) tea.Cmd {
 // sizes its own scrolling window, has to be told.
 func (m *filesModel) resize(width, height int) {
 	m.width, m.height = width, height
-	m.filter.Width = filterWidth(width)
+	m.filter.Width = filterBoxWidth(width)
 }
 
 // close shuts the view down: the transfer that is running, the session both
@@ -407,7 +408,7 @@ func (m filesModel) handleKey(msg tea.KeyMsg) (filesModel, tea.Cmd) {
 			// otherwise reach a context that has already been cancelled.
 			m.stopTransfer()
 			m.cancel = nil
-			m.status = "cancelling…"
+			m.status = i18n.M().StatusCancelling
 			m.failed = false
 		case m.filter.Value() != "":
 			m.filter.SetValue("")
@@ -679,12 +680,12 @@ func (m *filesModel) transferEntry() tea.Cmd {
 		return nil
 	}
 	if m.transferring() {
-		m.status = "a transfer is already running"
+		m.status = i18n.M().TransferRunning
 		m.failed = true
 		return nil
 	}
 	if !m.ready() {
-		m.status = "no session yet: still connecting"
+		m.status = i18n.M().NoSessionYet
 		m.failed = true
 		return nil
 	}
@@ -791,7 +792,7 @@ func (m *filesModel) applyTransferOutcome(err error) {
 		m.failed = false
 
 	case errors.Is(err, context.Canceled):
-		m.status = fmt.Sprintf("cancelled %s %s → %s", verb, from, to)
+		m.status = fmt.Sprintf(i18n.M().TransferCancelled, verb, from, to)
 		m.failed = false
 
 	default:
@@ -1123,17 +1124,18 @@ func (m filesModel) entryLine(e entry, active bool, width int) string {
 // paneEmpty is what a pane says when it has no row to draw. It is padded to the
 // pane's width by the caller, so it is kept short.
 func (m filesModel) paneEmpty(which paneSide) string {
+	messages := i18n.M()
 	switch {
 	case which == paneRemote && m.opening:
-		return "connecting…"
+		return messages.PaneConnecting
 	case which == paneRemote && !m.ready():
-		return "no session"
+		return messages.PaneNoSession
 	case which == paneRemote && m.loading:
-		return "loading…"
+		return messages.PaneLoading
 	case m.query() != "" && which == m.focus:
-		return "no match"
+		return messages.PaneNoMatch
 	default:
-		return "empty"
+		return messages.PaneEmpty
 	}
 }
 
@@ -1144,7 +1146,7 @@ func (m filesModel) pathLines(width int) []string {
 	if m.filtering {
 		// The filter replaces the paths rather than being added below them: the
 		// frame's height is a promise, and a line that comes and goes breaks it.
-		line := margin + m.filter.View()
+		line := margin + clip(m.filter.View(), width)
 		if m.narrow() {
 			return []string{line, ""}
 		}
@@ -1190,9 +1192,9 @@ func (m filesModel) panePath(which paneSide, width int) string {
 // paneLabel names a pane and marks which one has the keyboard. Both names are
 // the same width, so the two paths start at the same column.
 func (m filesModel) paneLabel(which paneSide) (string, lipgloss.Style) {
-	name := "[LOCAL]"
+	name := i18n.M().PaneLocal
 	if which == paneRemote {
-		name = "[REMOTE]"
+		name = i18n.M().PaneRemote
 	}
 	if which == m.focus {
 		return name, cursorStyle
@@ -1204,7 +1206,7 @@ func (m filesModel) paneLabel(which paneSide) (string, lipgloss.Style) {
 // went to filling in the right-hand end of the line.
 func (m filesModel) header(width int) string {
 	left := titleStyle.Render("ohmyssh") + "  " +
-		countStyle.Render(fmt.Sprintf("files · %s", m.host.Name))
+		countStyle.Render(fmt.Sprintf(i18n.M().FilesTitle, m.host.Name))
 
 	hint := m.host.DisplayUser() + "@" + hostName(m.host)
 	if hint == "@" || lipgloss.Width(left)+lipgloss.Width(hint)+4 > width {
@@ -1271,28 +1273,29 @@ func (m filesModel) footer(width int) string {
 // while it is up, and neither is anything but cancelling while a transfer is
 // running: those bars are about the one thing the view is doing.
 func (m filesModel) footerSegments() []binding {
+	messages := i18n.M()
 	switch {
 	case m.filtering:
 		return []binding{
-			{"type", "filter"},
-			{"enter", "keep"},
-			{"esc", "clear"},
+			{"type", messages.HintFilter},
+			{"enter", messages.HintKeep},
+			{"esc", messages.HintClear},
 		}
 	case m.transferring():
 		return []binding{
-			{"esc", "cancel"},
-			{"ctrl+c", "quit"},
+			{"esc", messages.HintCancel},
+			{"ctrl+c", messages.HintQuit},
 		}
 	}
 
 	return []binding{
-		{"tab", "pane"},
-		{"↑↓", "move"},
-		{"enter", "send"},
-		{"c", "copy"},
-		{"/", "find"},
-		{"r", "reload"},
-		{"?", "help"},
-		{"esc", "back"},
+		{"tab", messages.HintPane},
+		{"↑↓", messages.HintMove},
+		{"enter", messages.HintSend},
+		{"c", messages.HintCopy},
+		{"/", messages.HintFind},
+		{"r", messages.HintReload},
+		{"?", messages.HintHelp},
+		{"esc", messages.HintBack},
 	}
 }

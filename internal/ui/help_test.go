@@ -9,7 +9,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/maogou/ohmyssh/internal/config"
+	"github.com/maogou/ohmyssh/internal/i18n"
 )
 
 // helpBrowser is a browser with every service attached, which is the one the
@@ -50,7 +52,7 @@ func TestHelpShowsTheKeysOfTheViewItCameFrom(t *testing.T) {
 		"add a host, written to ~/.ohmyssh/hosts",
 		"delete the host under the cursor",
 		"open the file view",
-		"this list of keys",
+		"show key function help",
 	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the list's help does not say %q:\n%s", want, view)
@@ -192,21 +194,27 @@ func TestHelpFrameFitsTheTerminal(t *testing.T) {
 // down. The width the rows are measured against is the same one the bar is fitted
 // to, so the two are held to one budget.
 func TestHelpHintsSurviveTheUsualTerminalWidth(t *testing.T) {
-	m := helpBrowser()
-	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	m = updated.(browserModel)
+	for _, lang := range i18n.Languages {
+		t.Run(string(lang), func(t *testing.T) {
+			withLanguage(t, lang)
 
-	for name, bindings := range map[string][]binding{
-		"host list": m.listHelp(),
-		"file view": filesHelp(),
-	} {
-		room := m.contentWidth() - rowIndent - helpKeyWidth(bindings) - helpGap
-		for _, b := range bindings {
-			if got := lipgloss.Width(b.hint); got > room {
-				t.Errorf("%s: the %q hint is %d columns, %d past the %d its row has at 80 columns",
-					name, b.key, got, got-room, room)
+			m := helpBrowser()
+			updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+			m = updated.(browserModel)
+
+			for name, bindings := range map[string][]binding{
+				"host list": m.listHelp(),
+				"file view": filesHelp(),
+			} {
+				room := m.contentWidth() - rowIndent - helpKeyWidth(bindings) - helpGap
+				for _, b := range bindings {
+					if got := lipgloss.Width(b.hint); got > room {
+						t.Errorf("%s: the %q hint is %d columns, %d past the %d its row has at 80 columns",
+							name, b.key, got, got-room, room)
+					}
+				}
 			}
-		}
+		})
 	}
 }
 
@@ -230,31 +238,37 @@ func keyTokens(cell string) []string {
 // The form and the delete question have no help on purpose: they are typed into
 // and answered, and what they answer to is on the line under them.
 func TestHelpCoversEveryKeyOnTheBar(t *testing.T) {
-	withServices := helpBrowser()
-	fileView := openFileView(t, newFakeSession()).files
+	for _, lang := range i18n.Languages {
+		t.Run(string(lang), func(t *testing.T) {
+			withLanguage(t, lang)
 
-	cases := map[string]struct {
-		bar  []binding
-		help []binding
-	}{
-		"host list": {withServices.footerSegments(), withServices.listHelp()},
-		"file view": {fileView.footerSegments(), filesHelp()},
-	}
+			withServices := helpBrowser()
+			fileView := openFileView(t, newFakeSession()).files
 
-	for name, tc := range cases {
-		listed := make(map[string]bool)
-		for _, b := range tc.help {
-			for _, token := range keyTokens(b.key) {
-				listed[token] = true
+			cases := map[string]struct {
+				bar  []binding
+				help []binding
+			}{
+				"host list": {withServices.footerSegments(), withServices.listHelp()},
+				"file view": {fileView.footerSegments(), filesHelp()},
 			}
-		}
-		for _, b := range tc.bar {
-			for _, token := range keyTokens(b.key) {
-				if !listed[token] {
-					t.Errorf("%s: the bar offers %q, which the help does not list", name, token)
+
+			for name, tc := range cases {
+				listed := make(map[string]bool)
+				for _, b := range tc.help {
+					for _, token := range keyTokens(b.key) {
+						listed[token] = true
+					}
+				}
+				for _, b := range tc.bar {
+					for _, token := range keyTokens(b.key) {
+						if !listed[token] {
+							t.Errorf("%s: the bar offers %q, which the help does not list", name, token)
+						}
+					}
 				}
 			}
-		}
+		})
 	}
 }
 
@@ -262,20 +276,26 @@ func TestHelpCoversEveryKeyOnTheBar(t *testing.T) {
 // where that is hardest: the whole list of bindings has to survive it with the
 // help on the end.
 func TestHelpIsOnTheKeyBar(t *testing.T) {
-	m := helpBrowser()
-	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	m = updated.(browserModel)
+	for _, lang := range i18n.Languages {
+		t.Run(string(lang), func(t *testing.T) {
+			withLanguage(t, lang)
 
-	last := lastLine(m.View())
-	if !strings.Contains(last, "help") {
-		t.Errorf("the help is not on the list's bar at 80 columns: %q", last)
-	}
+			m := helpBrowser()
+			updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+			m = updated.(browserModel)
 
-	// And the file view's bar has room for its own, next to the way out.
-	files := openFileView(t, newFakeSession()).files
-	files.resize(80, 24)
-	if last := lastLine(files.View()); !strings.Contains(last, "help") {
-		t.Errorf("the help is not on the file view's bar: %q", last)
+			last := lastLine(m.View())
+			if !strings.Contains(last, i18n.M().HintHelp) {
+				t.Errorf("the help is not on the list's bar at 80 columns: %q", last)
+			}
+
+			// And the file view's bar has room for its own, next to the way out.
+			files := openFileView(t, newFakeSession()).files
+			files.resize(80, 24)
+			if last := lastLine(files.View()); !strings.Contains(last, i18n.M().HintHelp) {
+				t.Errorf("the help is not on the file view's bar: %q", last)
+			}
+		})
 	}
 }
 

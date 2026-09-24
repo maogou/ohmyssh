@@ -36,6 +36,13 @@ linters:
       - linters: [gosec]
         path: _test\.go
         text: G101|G115|G122|G301|G302|G306
+      # 语言表里那几条名字带 Password 的词条(--password 的说明、忘记密码的输出)
+      # 是给用户读的句子,不是凭据。G101 的判据是「名字像凭据 + 值的信息熵高」,
+      # 而中文的 UTF-8 字节熵天然高于英文散文:同一条词条在 en.go 里不报,在
+      # zh.go 里报。整包豁免,因为再加一种语言就会再多报几条,逐条标注没有意义。
+      - linters: [gosec]
+        path: internal/i18n/
+        text: G101
       # 下载时在本地建目录用 0755:与 MkidrAll 在远端建目录的做法一致,也和
       # mkdir -p / scp -r 留给用户的一致,真正落地的权限由 umask 决定。
       # 文件本身是按 0666&umask 创建的,单独把目录收窄到 0750 挡不住任何东西。

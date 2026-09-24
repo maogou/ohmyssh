@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/sshclient"
 )
 
@@ -115,7 +116,7 @@ func (p *TransferProgress) Done() {
 // Update too.
 func liveFrame(prog sshclient.Progress, width int) []string {
 	fileLabel := clip(shortPath(prog.File), maxLabelWidth)
-	allLabel := plural(prog.FilesTotal, "file")
+	allLabel := i18n.M().Files(prog.FilesTotal)
 
 	fileTail := strings.TrimSpace(humanRate(prog.Rate) + "  " + etaText(prog.ETA))
 	allTail := fmt.Sprintf("%s / %s", HumanBytes(prog.TotalDone), HumanBytes(prog.TotalBytes))
@@ -195,7 +196,7 @@ func percent(done, total int64) float64 {
 // rough to be worth reading.
 func etaText(eta time.Duration) string {
 	if text := humanETA(eta.Seconds()); text != "" {
-		return "ETA " + text
+		return fmt.Sprintf(i18n.M().ETA, text)
 	}
 	return ""
 }

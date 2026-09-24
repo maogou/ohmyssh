@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v3"
 
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/pkg/errno"
 	"github.com/maogou/ohmyssh/internal/pkg/zlog"
 	"github.com/maogou/ohmyssh/internal/service"
@@ -19,66 +20,82 @@ import (
 
 // globalFlags are readable from every subcommand because urfave/cli v3 resolves
 // flag lookups through the command's lineage.
+//
+// The Usage strings are read out of the catalogue here rather than written into
+// the commands, because a flag's Usage is fixed when the tree is built and
+// --help prints whatever was fixed. Run sets the language before calling New for
+// exactly this reason.
 func globalFlags() []cli.Flag {
+	m := i18n.M()
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:    "config",
 			Aliases: []string{"F"},
-			Usage:   "path to the ssh config file (default ~/.ssh/config)",
+			Usage:   m.FlagConfigUsage,
 			Sources: cli.EnvVars("OHMYSSH_CONFIG"),
 		},
 		&cli.StringFlag{
 			Name:    "known-hosts",
-			Usage:   "path to known_hosts (default ~/.ssh/known_hosts)",
+			Usage:   m.FlagKnownHostsUsage,
 			Sources: cli.EnvVars("OHMYSSH_KNOWN_HOSTS"),
 		},
 		&cli.StringFlag{
 			Name:    "log-level",
 			Value:   "info",
-			Usage:   "log level: trace, debug, info, warn, error, disabled",
+			Usage:   m.FlagLogLevelUsage,
 			Sources: cli.EnvVars("OHMYSSH_LOG_LEVEL"),
 		},
 		&cli.StringFlag{
 			Name:    "log-format",
 			Value:   "console",
-			Usage:   "log format: console or json",
+			Usage:   m.FlagLogFormatUsage,
 			Sources: cli.EnvVars("OHMYSSH_LOG_FORMAT"),
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
 			Aliases: []string{"d"},
-			Usage:   "shortcut for --log-level debug",
+			Usage:   m.FlagDebugUsage,
 		},
 		&cli.BoolFlag{
 			Name:  "insecure",
-			Usage: "skip host key verification (unsafe: allows interception)",
+			Usage: m.FlagInsecureUsage,
 		},
 		&cli.BoolFlag{
 			Name:  "no-agent",
-			Usage: "do not authenticate with ssh-agent",
+			Usage: m.FlagNoAgentUsage,
 		},
 		&cli.StringFlag{
 			Name:    "password",
 			Aliases: []string{"p"},
-			Usage:   "password for password/keyboard-interactive auth (prompted when omitted)",
+			Usage:   m.FlagPasswordUsage,
 			Sources: cli.EnvVars("OHMYSSH_PASSWORD"),
 		},
 		&cli.BoolFlag{
 			Name:  "password-stdin",
-			Usage: "read the password from standard input, one line",
+			Usage: m.FlagPasswordStdinUsage,
 		},
 		&cli.BoolFlag{
 			Name:  "no-prompt",
-			Usage: "never prompt for a password; fail instead",
+			Usage: m.FlagNoPromptUsage,
 		},
 		&cli.BoolFlag{
 			Name:  "no-save-password",
-			Usage: "do not remember passwords that work (saved ones are still used)",
+			Usage: m.FlagNoSavePasswordUsage,
 		},
 		&cli.DurationFlag{
 			Name:  "timeout",
 			Value: sshclient.DefaultDialTimeout,
-			Usage: "connection and handshake timeout",
+			Usage: m.FlagTimeoutUsage,
+		},
+		// Declared here so that it appears in --help beside the others, with the
+		// variable that can also set it. It is read before the tree exists, by
+		// prescanLanguage; by the time the framework parses this one the language
+		// has already been chosen, and the value is not consulted again.
+		&cli.StringFlag{
+			Name:    "lang",
+			Aliases: []string{"language"},
+			Usage:   m.FlagLangUsage,
+			Sources: cli.EnvVars("OHMYSSH_LANG"),
 		},
 	}
 }
@@ -123,7 +140,7 @@ func connectOptions(cmd *cli.Command) (service.ConnectOptions, error) {
 		return opts, nil
 	}
 	if opts.Password != "" {
-		return service.ConnectOptions{}, usageError("use --password or --password-stdin, not both")
+		return service.ConnectOptions{}, usageError(i18n.M().PasswordBoth)
 	}
 
 	in := cmd.Root().Reader
@@ -172,7 +189,7 @@ func readPassword(in io.Reader) (string, error) {
 	// shell or from a file written on one.
 	password := strings.TrimSuffix(string(line), "\r")
 	if password == "" {
-		return "", usageError("--password-stdin read no password from standard input")
+		return "", usageError(i18n.M().PasswordStdinEmpty)
 	}
 	return password, nil
 }

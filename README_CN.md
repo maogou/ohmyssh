@@ -160,9 +160,25 @@ ohmyssh exec web1 -- failing-command && echo ok
 | `--timeout` | `15s` | 连接与握手超时 |
 | `--log-level` | `info` | `trace`、`debug`、`info`、`warn`、`error`、`disabled` |
 | `--log-format` | `console` | `console` 或 `json` |
+| `--lang`, `--language` | 跟随环境变量 | 界面与 `--help` 的语言：`en`、`zh` 或 `auto`（`OHMYSSH_LANG`） |
 | `--debug`, `-d` | | `--log-level debug` 的简写 |
 
 参数是全局的，所以放在子命令前面或后面都可以。日志输出到 stderr，因此 `exec` 的输出可以安全地管道传递。浏览器是个例外：它开着的时候日志写进 `~/.ohmyssh/ohmyssh.log`，因为这时终端归画面所有，写进去的一行会落在画面中间。不是日志行的那些文字也一样跟着走 —— 服务端的登录 banner、`ProxyCommand` 自己的 stderr —— 否则同一个问题只是换了个来源。
+
+### 语言
+
+有英文和简体中文两种，跟随你的 locale：先看 `LC_ALL`，再看 `LC_MESSAGES`，最后看 `LANG`，第一个能指明语言的说了算。`zh` 的各种写法 —— `zh_CN.UTF-8`、`zh-Hans`、`zh` —— 都是中文；其余一律英文，包括 ohmyssh 没有的语言，而且这不算是错误。你不需要做任何配置。
+
+`--lang`（或 `OHMYSSH_LANG`）可以覆盖它，`--lang auto` 则把决定权交还给环境变量。界面、`?` 帮助页、`--help` 和子命令说明都跟着走。命令行上写了一个 ohmyssh 没有的语言会当作用法错误，而不是悄悄回落 —— 打错一个字母不该被当成一个生效了的设置。
+
+```sh
+LC_ALL=zh_CN.UTF-8 ohmyssh        # 浏览器是中文
+ohmyssh --lang zh --help          # 帮助是中文
+LANG=fr_FR.UTF-8 ohmyssh          # 没有法语：英文，不报错
+ohmyssh --lang fr                 # 退出码 2：ohmyssh 只有 en 和 zh
+```
+
+子命令名、参数名、主机名和日志行不翻译，日志是写来贴进 issue 的。操作系统和 SSH 库抛出的错误按它们自己的说法透出。
 
 ## 它会从你的配置里读什么
 

@@ -239,6 +239,7 @@ ohmyssh exec web1 -- failing-command && echo ok
 | `--timeout` | `15s` | Connection and handshake timeout |
 | `--log-level` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `disabled` |
 | `--log-format` | `console` | `console` or `json` |
+| `--lang`, `--language` | from the environment | Language of the interface and `--help`: `en`, `zh`, or `auto` (`OHMYSSH_LANG`) |
 | `--debug`, `-d` | | Shortcut for `--log-level debug` |
 
 Flags are global, so they can appear before or after the subcommand. Logs go to
@@ -248,6 +249,31 @@ belongs to the frame and a log line written into it lands in the middle of one.
 Text that is not a log line goes the same way — a server's login banner, a
 `ProxyCommand`'s own stderr — which would otherwise be the same problem with a
 different name on it.
+
+### Language
+
+English and Simplified Chinese, chosen from your locale: `LC_ALL`, then
+`LC_MESSAGES`, then `LANG`, first one set that names a language wins. `zh` in any
+of its spellings — `zh_CN.UTF-8`, `zh-Hans`, `zh` — is Chinese; anything else,
+including a language ohmyssh does not have, is English, and never an error. You
+are not asked to configure anything.
+
+`--lang` (or `OHMYSSH_LANG`) overrides that, and `--lang auto` hands the decision
+back to the locale. Everything follows it: the browser, its help, `--help` and the
+subcommand descriptions. A language named on the command line that ohmyssh does
+not have is a usage error rather than a silent fallback, so a typo is not
+mistaken for a working setting.
+
+```sh
+LC_ALL=zh_CN.UTF-8 ohmyssh        # the browser in Chinese
+ohmyssh --lang zh --help          # the help in Chinese
+LANG=fr_FR.UTF-8 ohmyssh          # no French; English, and no complaint
+ohmyssh --lang fr                 # exit 2: ohmyssh has en and zh
+```
+
+Command names, flag names, host names and log lines are not translated; the log
+is written to be pasted into an issue. Errors from the operating system and from
+the SSH library are passed through in their own words.
 
 ## What it reads from your config
 

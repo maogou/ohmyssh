@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/sshclient"
 )
 
@@ -26,7 +27,7 @@ func (s TransferSummary) Line() string {
 	if s.Err != nil {
 		return fmt.Sprintf("%s: %v", head, s.Err)
 	}
-	return fmt.Sprintf("%s  %s  %s", head, plural(s.Files, "file"), HumanBytes(s.Bytes))
+	return fmt.Sprintf("%s  %s  %s", head, i18n.M().Files(s.Files), HumanBytes(s.Bytes))
 }
 
 // TransferEnds orders the two ends of a transfer the way the bytes travel, so a
@@ -75,14 +76,6 @@ func HumanBytes(n int64) string {
 		return fmt.Sprintf("%.1f %s", value, units[step])
 	}
 	return fmt.Sprintf("%.0f %s", value, units[step])
-}
-
-// plural counts a noun, so a one-file transfer does not read as "1 files".
-func plural(n int, noun string) string {
-	if n == 1 {
-		return fmt.Sprintf("%d %s", n, noun)
-	}
-	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 // humanRate renders a transfer rate, which is a byte count per second.

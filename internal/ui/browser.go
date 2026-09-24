@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/maogou/ohmyssh/internal/config"
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/pkg/appdir"
 	"github.com/maogou/ohmyssh/internal/pkg/zlog"
 )
@@ -30,6 +31,15 @@ const (
 	filterPrompt      = "› "
 	filterPromptWidth = 2 // display columns taken by filterPrompt
 	minContentWidth   = 10
+
+	// cursorCellSpare is the column a text input draws its cursor in beyond the
+	// width it was given: bubbles renders the cursor cell on top of the padding
+	// it worked out from its own width, so a box set to n columns renders n+1
+	// columns once it holds text — whether or not the cursor is in it. A line one
+	// column past the edge of a frame wraps, and in the alternate screen a wrapped
+	// line takes a row with it. Every text input here is therefore given one
+	// column less than the room it has.
+	cursorCellSpare = 1
 
 	// rowIndent is what a table row spends before its first column: the cursor
 	// marker, which is the same width selected or not so the columns line up
@@ -220,12 +230,12 @@ type browserModel struct {
 
 func newBrowserModel(opts BrowserOptions) browserModel {
 	filter := textinput.New()
-	filter.Placeholder = "filter by name, host, user or tag"
+	filter.Placeholder = i18n.M().FilterPlaceholder
 	filter.Prompt = filterPrompt
 	filter.PromptStyle = cursorStyle
 	filter.TextStyle = nameStyle
 	filter.Cursor.Style = cursorStyle
-	filter.Width = filterWidth(defaultBrowserWidth)
+	filter.Width = filterBoxWidth(defaultBrowserWidth)
 	filter.SetValue(opts.Filter)
 	filter.Focus()
 
@@ -253,7 +263,7 @@ func (m browserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The text input sizes both its scrolling window and its placeholder from
 		// its own Width; left at zero, bubbles renders only the cursor rune of
 		// the placeholder.
-		m.filter.Width = filterWidth(msg.Width)
+		m.filter.Width = filterBoxWidth(msg.Width)
 		m.files.resize(msg.Width, msg.Height)
 		if m.mode == modeForm {
 			m.form.resize(m.contentWidth())
@@ -265,7 +275,7 @@ func (m browserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.status = fmt.Sprintf("%s: %v", msg.host.Name, msg.err)
 		} else {
-			m.status = fmt.Sprintf("disconnected from %s", msg.host.Name)
+			m.status = fmt.Sprintf(i18n.M().DisconnectedFrom, msg.host.Name)
 		}
 		return m, nil
 
@@ -298,6 +308,29 @@ func (m browserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// addedStatus and deletedStatus are the sentences those two operations end
+// with, each in the two shapes it comes in: with and without the file the host
+// was written to.
+//
+// They are whole sentences in the catalogue rather than a sentence with a file
+// appended to it, because where the file belongs in the sentence is the
+// language's business — Chinese names it after the host, where English names it
+// last — and a caller that concatenated could not know that. The password a
+// delete left behind is said after the sentence, from the catalogue too.
+func addedStatus(alias, hostsFile string) string {
+	if hostsFile == "" {
+		return fmt.Sprintf(i18n.M().Added, alias)
+	}
+	return fmt.Sprintf(i18n.M().AddedTo, alias, abbreviated(hostsFile))
+}
+
+func deletedStatus(name, hostsFile string) string {
+	if hostsFile == "" {
+		return fmt.Sprintf(i18n.M().Deleted, name)
+	}
+	return fmt.Sprintf(i18n.M().DeletedFrom, name, abbreviated(hostsFile))
+}
+
 // hostAdded records what came back from writing a host. A failure leaves the
 // form up with everything in it: what is wrong with a host is usually one field,
 // and retyping the other four to fix it is the worst thing a form can ask for.
@@ -313,10 +346,7 @@ func (m browserModel) hostAdded(msg hostAddedMsg) (tea.Model, tea.Cmd) {
 	// end of the list, which is past the bottom of a window that is full.
 	m.reveal(msg.host.Alias)
 
-	m.status = fmt.Sprintf("added %s", msg.host.Alias)
-	if m.hostsFile != "" {
-		m.status += " to " + abbreviated(m.hostsFile)
-	}
+	m.status = addedStatus(msg.host.Alias, m.hostsFile)
 	m.failed = false
 	m.mode = modeList
 	m.form = hostForm{}
@@ -345,15 +375,11 @@ func (m browserModel) hostRemoved(msg hostRemovedMsg) (tea.Model, tea.Cmd) {
 	m.offset = offset
 	m.clampScroll()
 
-	m.status = fmt.Sprintf("deleted %s", msg.host.Name)
-	if m.hostsFile != "" {
-		m.status += " from " + abbreviated(m.hostsFile)
-	}
 	// The password is saved under a login identity rather than under the alias, so
 	// it belongs to every alias that resolves there and is not the browser's to
 	// throw away. Saying so is the difference between the user knowing they can
 	// clear it and thinking the delete did it.
-	m.status += " (saved password kept)"
+	m.status = deletedStatus(msg.host.Name, m.hostsFile) + i18n.M().PasswordKeptSuffix
 	m.failed = false
 	return m, nil
 }
@@ -555,7 +581,7 @@ func (m browserModel) openFiles(start paneSide) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.remote == nil {
-		m.status = "transfers are unavailable: no file service is attached"
+		m.status = i18n.M().NoTransferService
 		m.failed = true
 		return m, nil
 	}
@@ -587,7 +613,7 @@ func (m browserModel) closeFiles() browserModel {
 // last one is a form that can write it twice.
 func (m browserModel) openForm() (tea.Model, tea.Cmd) {
 	if m.add == nil {
-		m.status = "adding hosts is unavailable: no host service is attached"
+		m.status = i18n.M().NoHostServiceAdd
 		m.failed = true
 		return m, nil
 	}
@@ -603,7 +629,7 @@ func (m browserModel) openForm() (tea.Model, tea.Cmd) {
 // status line above the key hints so the user can see which row it is about.
 func (m browserModel) askRemove() (tea.Model, tea.Cmd) {
 	if m.remove == nil || m.hostsFile == "" {
-		m.status = "deleting hosts is unavailable: no host service is attached"
+		m.status = i18n.M().NoHostServiceRemove
 		m.failed = true
 		return m, nil
 	}
@@ -618,7 +644,7 @@ func (m browserModel) askRemove() (tea.Model, tea.Cmd) {
 	// without this screen — but it is the list that knows which file each host came
 	// from, so the user is told before they answer rather than after.
 	if filepath.Clean(host.SourceFile) != filepath.Clean(m.hostsFile) {
-		m.status = fmt.Sprintf("%s is in %s, which ohmyssh does not write; edit it there",
+		m.status = fmt.Sprintf(i18n.M().HostNotWritable,
 			host.Name, sourceName(host.SourceFile))
 		m.failed = true
 		return m, nil
@@ -674,7 +700,7 @@ func (m browserModel) removeHost() (tea.Model, tea.Cmd) {
 // has to go and edit themselves.
 func sourceName(file string) string {
 	if file == "" {
-		return "the ssh config"
+		return i18n.M().SourceSSHConfig
 	}
 	return abbreviated(file)
 }
@@ -812,6 +838,14 @@ func filterWidth(termWidth int) int {
 	return max(termWidth-4, 8)
 }
 
+// filterBoxWidth is the width the filter's text input is given: the room the
+// line has, less the column the cursor is drawn in. The line it ends up on is
+// the margin, the prompt and this, which comes to the terminal's width exactly
+// when the box holds text.
+func filterBoxWidth(termWidth int) int {
+	return max(filterWidth(termWidth)-cursorCellSpare, 1)
+}
+
 // contentWidth is the width a frame's content is drawn to once the left margin
 // is accounted for. It derives from the filter width so that the filter box and
 // the content under it share a single grid, in either view.
@@ -904,12 +938,21 @@ type column struct {
 // hostColumns is the table, in display order. The alias and the address carry no
 // drop order: they are what the user picks a host by, so everything else goes
 // before either of them gives up space.
-var hostColumns = []column{
-	{header: "NAME", cell: func(h config.SSHHost) string { return h.Name }, style: nameStyle},
-	{header: "USER", cell: config.SSHHost.DisplayUser, style: metaStyle, dropOrder: 3},
-	{header: "HOST", cell: hostName, style: metaStyle},
-	{header: "PORT", cell: portOf, style: metaStyle, right: true, dropOrder: 2},
-	{header: "TAGS", cell: tagText, style: tagStyle, dropOrder: 1},
+//
+// It is built per frame rather than kept in a package variable, because the
+// labels are words and a package variable would be filled in with whatever
+// language was installed when the package was loaded — which is before anything
+// has read the environment. The styles and cells are the same functions every
+// time; only the headers move.
+func hostColumns() []column {
+	m := i18n.M()
+	return []column{
+		{header: m.ColumnName, cell: func(h config.SSHHost) string { return h.Name }, style: nameStyle},
+		{header: m.ColumnUser, cell: config.SSHHost.DisplayUser, style: metaStyle, dropOrder: 3},
+		{header: m.ColumnHost, cell: hostName, style: metaStyle},
+		{header: m.ColumnPort, cell: portOf, style: metaStyle, right: true, dropOrder: 2},
+		{header: m.ColumnTags, cell: tagText, style: tagStyle, dropOrder: 1},
+	}
 }
 
 // hostName is the name a host resolves to, falling back to its alias.
@@ -933,8 +976,7 @@ func portOf(h config.SSHHost) string {
 // into width. Widths come from the hosts actually showing, so a filter that
 // leaves only short names behind does not keep a wide column reserved.
 func (m browserModel) tableLayout(width int) []column {
-	cols := make([]column, len(hostColumns))
-	copy(cols, hostColumns)
+	cols := hostColumns()
 
 	for i := range cols {
 		cols[i].width = lipgloss.Width(cols[i].header)
@@ -1022,7 +1064,7 @@ func (m browserModel) View() string {
 	lines := []string{
 		margin + m.header(width),
 		rule(width),
-		margin + m.filter.View(),
+		margin + clip(m.filter.View(), width),
 		"",
 		m.table(width),
 		m.statusLine(width),
@@ -1088,7 +1130,7 @@ func (m browserModel) table(width int) string {
 func (m browserModel) tableLines(width int) []string {
 	// No columns to label when nothing matched; the empty state says why.
 	if len(m.visible) == 0 {
-		return []string{m.emptyState()}
+		return []string{m.emptyState(width)}
 	}
 
 	cols := m.tableLayout(width)
@@ -1105,7 +1147,7 @@ func (m browserModel) tableLines(width int) []string {
 	// The overflow counter shares the window with the hosts rather than adding a
 	// line of its own; anything else would push the key hints off the bottom.
 	if overflow {
-		lines = append(lines, margin+hintStyle.Render(fmt.Sprintf("↓ %d more", len(m.visible)-end)))
+		lines = append(lines, margin+hintStyle.Render(fmt.Sprintf(i18n.M().MoreHosts, len(m.visible)-end)))
 	}
 	return lines
 }
@@ -1132,14 +1174,14 @@ var columnSpace = strings.Repeat(" ", columnGap)
 
 func (m browserModel) header(width int) string {
 	left := titleStyle.Render("ohmyssh") + "  " +
-		countStyle.Render(fmt.Sprintf("%d of %d hosts", len(m.visible), len(m.hosts)))
+		countStyle.Render(fmt.Sprintf(i18n.M().HostsCount, len(m.visible), len(m.hosts)))
 	return headerLine(left, sourceHint(m.hosts), width)
 }
 
 // formHeader is the list's header with the form named in place of the count, and
 // the file the host will be written to where the sources of the hosts are.
 func (m browserModel) formHeader(width int) string {
-	left := titleStyle.Render("ohmyssh") + "  " + countStyle.Render("new host")
+	left := titleStyle.Render("ohmyssh") + "  " + countStyle.Render(i18n.M().FormTitle)
 	return headerLine(left, abbreviated(m.hostsFile), width)
 }
 
@@ -1237,16 +1279,23 @@ func tagText(host config.SSHHost) string {
 	return "#" + strings.Join(host.Tags, " #")
 }
 
-func (m browserModel) emptyState() string {
+// emptyState is the sentence a list with no rows to draw says instead, clipped to
+// the width the table would have been drawn to. Unlike a table row it has no
+// column to be held inside, and the sentence is a whole one in whichever
+// language it is written in, so the clip is what keeps the longest of them — a
+// language's, or a narrow terminal's — from reaching past the edge and taking a
+// row of the frame with it.
+func (m browserModel) emptyState(width int) string {
+	sentence := i18n.M().NoHostsMatch
 	if len(m.hosts) == 0 {
 		// Nothing on screen offers a key that does nothing: the empty state and
 		// the hint bar agree on whether a host can be added from here.
+		sentence = i18n.M().NoHostsAdd
 		if m.add == nil {
-			return margin + emptyStyle.Render("No hosts found. Add a Host block to ~/.ssh/config.")
+			sentence = i18n.M().NoHostsConfig
 		}
-		return margin + emptyStyle.Render("No hosts found. Press A to add one.")
 	}
-	return margin + emptyStyle.Render("No hosts match the filter. Press esc to clear it.")
+	return margin + emptyStyle.Render(clip(sentence, width))
 }
 
 // statusLine reports the outcome of the session that just ended, or asks a
@@ -1272,11 +1321,10 @@ func (m browserModel) statusLine(width int) string {
 // and the file, since the question is about both, and it ends with the two
 // answers so the keys are readable from the question itself.
 func (m browserModel) confirmQuestion() string {
-	where := ""
-	if m.hostsFile != "" {
-		where = " from " + abbreviated(m.hostsFile)
+	if m.hostsFile == "" {
+		return fmt.Sprintf(i18n.M().ConfirmDelete, m.pending.Name)
 	}
-	return fmt.Sprintf("delete %s%s?  y/n", m.pending.Name, where)
+	return fmt.Sprintf(i18n.M().ConfirmDeleteFrom, m.pending.Name, abbreviated(m.hostsFile))
 }
 
 // footer lists the keys whichever mode is up answers to. It is drawn on every
@@ -1302,8 +1350,8 @@ func (m browserModel) footer(width int) string {
 // not a "y" is one.
 func confirmFooterSegments() []binding {
 	return []binding{
-		{"y", "delete"},
-		{"n", "cancel"},
+		{"y", i18n.M().HintDelete},
+		{"n", i18n.M().HintCancel},
 	}
 }
 
@@ -1346,21 +1394,21 @@ func fitSegments(segments []binding, width int) string {
 // them.
 func (m browserModel) footerSegments() []binding {
 	segments := []binding{
-		{"enter", "connect"},
-		{"↑↓", "move"},
-		{"esc", "clear"},
-		{"q", "quit"},
+		{"enter", i18n.M().HintConnect},
+		{"↑↓", i18n.M().HintMove},
+		{"esc", i18n.M().HintClear},
+		{"q", i18n.M().HintQuit},
 	}
 	if m.add != nil {
-		segments = append(segments, binding{"A", "add"})
+		segments = append(segments, binding{"A", i18n.M().HintAdd})
 	}
 	if m.remove != nil {
-		segments = append(segments, binding{"X", "delete"})
+		segments = append(segments, binding{"X", i18n.M().HintDelete})
 	}
 	segments = append(segments,
-		binding{"U/D", "files"},
-		binding{"?", "help"})
-	return append(segments, binding{"type", "filter"})
+		binding{"U/D", i18n.M().HintFiles},
+		binding{"?", i18n.M().HintHelp})
+	return append(segments, binding{"type", i18n.M().HintFilter})
 }
 
 // ---------------------------------------------------------------------------

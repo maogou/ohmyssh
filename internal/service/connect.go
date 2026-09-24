@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/maogou/ohmyssh/internal/config"
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/pkg/errno"
 	"github.com/maogou/ohmyssh/internal/pkg/prompt"
 	"github.com/maogou/ohmyssh/internal/repository"
@@ -122,9 +123,9 @@ func (s *connectService) AddHost(ctx context.Context, opts ConnectOptions, host 
 		}
 		where := existing.SourceFile
 		if where == "" {
-			where = "the ssh config"
+			where = i18n.M().SourceSSHConfig
 		}
-		return nil, fmt.Errorf("alias %q is already in %s", host.Alias, where)
+		return nil, fmt.Errorf(i18n.M().AliasTaken, host.Alias, where)
 	}
 
 	if err := s.hosts.Add(host); err != nil {
@@ -156,9 +157,9 @@ func (s *connectService) RemoveHost(ctx context.Context, opts ConnectOptions, ho
 	if filepath.Clean(host.SourceFile) != filepath.Clean(s.hosts.Path()) {
 		where := host.SourceFile
 		if where == "" {
-			where = "the ssh config"
+			where = i18n.M().SourceSSHConfig
 		}
-		return nil, fmt.Errorf("host %q is in %s, which ohmyssh does not write; remove it there", host.Name, where)
+		return nil, fmt.Errorf(i18n.M().NotOhmysshsFile, host.Name, where)
 	}
 
 	if err := s.hosts.Remove(host.Name); err != nil {

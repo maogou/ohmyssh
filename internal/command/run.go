@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/pkg/errno"
 	"github.com/urfave/cli/v3"
 )
@@ -24,7 +25,7 @@ func Run(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	err := New().Run(ctx, args)
+	err := run(ctx, args)
 	if err == nil {
 		return errno.CodeOK
 	}
@@ -40,6 +41,38 @@ func Run(args []string) int {
 
 	fmt.Fprintln(os.Stderr, "ohmyssh:", err)
 	return errno.CodeError
+}
+
+// run installs the language and hands the arguments to the command tree.
+//
+// This is the only place the language is set, and it is set before the tree is
+// built: a command's Usage string is fixed when the tree is constructed, so
+// asking for Chinese after New has run would give a Chinese --lang description
+// under an English --help.
+//
+// Tests call New directly and so never get here, which is what keeps them
+// reading the English they were written against.
+func run(ctx context.Context, args []string) error {
+	lang, err := prescanLanguage(args, os.Getenv)
+
+	// Installed even when the flag was refused, and installed from what came
+	// back beside the error rather than from what was asked for: the complaint
+	// below has to be written in a language the person who typed it can read,
+	// and the one they named is by definition not one this program has.
+	i18n.Setup(lang)
+
+	if err != nil {
+		var unsupported *i18n.UnsupportedError
+		if !errors.As(err, &unsupported) {
+			return err
+		}
+		return cli.Exit(
+			fmt.Sprintf(i18n.M().UnsupportedLanguage, unsupported.Value, i18n.Names()),
+			errno.CodeUsage,
+		)
+	}
+
+	return New().Run(ctx, args)
 }
 
 // exit maps an error from the service layer onto the CLI framework's own exit

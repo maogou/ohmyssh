@@ -4,34 +4,22 @@ import (
 	"context"
 	"os"
 
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/service"
 	"github.com/urfave/cli/v3"
 )
 
 func execCommand(connect service.ConnectService) *cli.Command {
+	m := i18n.M()
 	return &cli.Command{
-		Name:      "exec",
-		Usage:     "Run a command on a remote host without a PTY",
-		ArgsUsage: "<host> -- <command...>",
-		Description: `Run one command on a host and return its exit status.
-
-Output is streamed straight to stdout and stderr, so exec composes in pipelines:
-
-  ohmyssh exec web1 -- df -h
-  ohmyssh exec web1 -- cat /etc/hostname | tr -d '\\n'
-
-The remote exit status becomes ohmyssh's exit status.
-
-A password can be piped in rather than typed, which keeps it out of a process
-list it would otherwise be visible in:
-
-  echo "$PW" | ohmyssh exec --password-stdin web1 -- uptime`,
+		Name:        "exec",
+		Usage:       m.ExecUsage,
+		ArgsUsage:   "<host> -- <command...>",
+		Description: m.ExecDescription,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args().Slice()
 			if len(args) < 2 {
-				return usageError(
-					"exec requires a host and a command: ohmyssh exec <host> -- <command>",
-				)
+				return usageError(m.ExecMissing)
 			}
 			opts, err := connectOptions(cmd)
 			if err != nil {

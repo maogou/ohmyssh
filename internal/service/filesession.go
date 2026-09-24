@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/maogou/ohmyssh/internal/config"
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/sshclient"
 	"github.com/maogou/ohmyssh/internal/ui"
 )
@@ -32,10 +33,7 @@ func (s *connectService) openRemote(
 	client, err := s.dialWithPrompt(ctx, host, opts, dial)
 	if err != nil {
 		if sshclient.IsAuthFailure(err) {
-			return nil, fmt.Errorf(
-				"no saved password for %s: connect to it once, or use ohmyssh put or get from a shell",
-				host.Name,
-			)
+			return nil, fmt.Errorf(i18n.M().NoSavedPasswordTransfer, host.Name)
 		}
 		return nil, err
 	}

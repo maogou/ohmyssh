@@ -8,6 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/service"
 	"github.com/maogou/ohmyssh/internal/sshclient"
 	"github.com/maogou/ohmyssh/internal/ui"
@@ -18,32 +19,16 @@ import (
 // and the wording of the result are the same whichever one was typed.
 
 func putCommand(connect service.ConnectService) *cli.Command {
+	m := i18n.M()
 	return &cli.Command{
-		Name:      "put",
-		Usage:     "Upload a file or a directory tree to a host",
-		ArgsUsage: "<host> <local> <remote>",
-		Description: `Copy local to remote, recursively when local is a directory.
-
-Progress is reported on stderr, so stdout stays clean for the summary line:
-
-  ohmyssh put web1 ./deploy.sh /tmp/deploy.sh
-  ohmyssh put web1 ./out/ /opt/app/
-
-A directory copies its contents into the remote path, not into a directory named
-after it: the two lines above leave the files directly under /opt/app. A remote
-path ending in a slash is a directory, so a single file keeps its own name
-inside it. Existing files are overwritten.
-
-A password can be piped in rather than typed, which keeps it out of a process
-list it would otherwise be visible in:
-
-  echo "$PW" | ohmyssh put --password-stdin web1 ./out/ /opt/app/`,
+		Name:        "put",
+		Usage:       m.PutUsage,
+		ArgsUsage:   "<host> <local> <remote>",
+		Description: m.PutDescription,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args().Slice()
 			if len(args) != 3 {
-				return usageError(
-					"put requires a host, a local path and a remote path: ohmyssh put <host> <local> <remote>",
-				)
+				return usageError(m.PutMissing)
 			}
 			return runTransfer(ctx, cmd, connect, sshclient.Upload, args[0], args[1], args[2])
 		},
@@ -51,31 +36,16 @@ list it would otherwise be visible in:
 }
 
 func getCommand(connect service.ConnectService) *cli.Command {
+	m := i18n.M()
 	return &cli.Command{
-		Name:      "get",
-		Usage:     "Download a file or a directory tree from a host",
-		ArgsUsage: "<host> <remote> <local>",
-		Description: `Copy remote to local, recursively when remote is a directory.
-
-It is put with the ends swapped, and the same rules apply:
-
-  ohmyssh get web1 /var/log/app.log ./app.log
-  ohmyssh get web1 /opt/app/ ./app/
-
-A password can be piped in rather than typed, which keeps it out of a process
-list it would otherwise be visible in:
-
-  echo "$PW" | ohmyssh get --password-stdin web1 /var/log/app.log ./app.log
-
-A directory copies its contents into the local path. A local path ending in a
-separator is a directory, so a single file keeps its own name inside it.
-Existing files are overwritten.`,
+		Name:        "get",
+		Usage:       m.GetUsage,
+		ArgsUsage:   "<host> <remote> <local>",
+		Description: m.GetDescription,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args().Slice()
 			if len(args) != 3 {
-				return usageError(
-					"get requires a host, a remote path and a local path: ohmyssh get <host> <remote> <local>",
-				)
+				return usageError(m.GetMissing)
 			}
 			return runTransfer(ctx, cmd, connect, sshclient.Download, args[0], args[2], args[1])
 		},
@@ -83,27 +53,16 @@ Existing files are overwritten.`,
 }
 
 func scpCommand(connect service.ConnectService) *cli.Command {
+	m := i18n.M()
 	return &cli.Command{
-		Name:      "scp",
-		Usage:     "Copy between here and a host, naming each end the way scp does",
-		ArgsUsage: "<src> <dst>",
-		Description: `Copy two paths, exactly one of which names a host as host:path.
-
-  ohmyssh scp ./deploy.sh web1:/tmp/deploy.sh
-  ohmyssh scp web1:/var/log/app.log ./app.log
-
-The direction follows from which side names a host, so scp is put and get with
-nothing to decide. A path with no colon is local; a path with an empty one,
-web1:, is the host's home directory.
-
-A password can be piped in rather than typed, which keeps it out of a process
-list it would otherwise be visible in:
-
-  echo "$PW" | ohmyssh scp --password-stdin web1:/var/log/app.log ./app.log`,
+		Name:        "scp",
+		Usage:       m.ScpUsage,
+		ArgsUsage:   "<src> <dst>",
+		Description: m.ScpDescription,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args().Slice()
 			if len(args) != 2 {
-				return usageError("scp requires a source and a destination: ohmyssh scp <src> <dst>")
+				return usageError(m.ScpMissing)
 			}
 
 			srcHost, srcPath, srcRemote := parseTransferTarget(args[0])
@@ -111,18 +70,14 @@ list it would otherwise be visible in:
 
 			switch {
 			case srcRemote && dstRemote:
-				return usageError(
-					"scp copies between here and a host, not between two hosts: " + args[0] + " and " + args[1] + " both name one",
-				)
+				return usageError(fmt.Sprintf(m.ScpTwoHosts, args[0], args[1]))
 			case srcRemote:
 				// Remote to local: args[1] is the local end.
 				return runTransfer(ctx, cmd, connect, sshclient.Download, srcHost, args[1], srcPath)
 			case dstRemote:
 				return runTransfer(ctx, cmd, connect, sshclient.Upload, dstHost, args[0], dstPath)
 			default:
-				return usageError(
-					"scp needs one end to name a host: " + args[0] + " and " + args[1] + " are both local",
-				)
+				return usageError(fmt.Sprintf(m.ScpNoHost, args[0], args[1]))
 			}
 		},
 	}

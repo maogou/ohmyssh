@@ -13,6 +13,7 @@ import (
 
 	"github.com/maogou/ohmyssh/internal/config"
 	"github.com/maogou/ohmyssh/internal/constant"
+	"github.com/maogou/ohmyssh/internal/i18n"
 	"github.com/maogou/ohmyssh/internal/pkg/zlog"
 	"github.com/maogou/ohmyssh/internal/repository"
 	"github.com/maogou/ohmyssh/internal/service"
@@ -21,6 +22,10 @@ import (
 // New builds the command tree with the service layer wired to its
 // dependencies. It is exported so tests can exercise the CLI without spawning a
 // process.
+//
+// Every word in the tree comes out of the catalogue here, at the moment the tree
+// is built. Run has already installed the language by then; a test that calls
+// this directly gets the English the source is written in.
 func New() *cli.Command {
 	// setupLogging installs the real logger in Before, after this function has
 	// run. logging.L() hands back a pointer to the process-wide logger rather
@@ -33,33 +38,17 @@ func New() *cli.Command {
 
 	connect := service.NewConnectService(logger, transport, hosts, creds)
 	credentials := service.NewCredentialService(hosts, creds)
+	m := i18n.M()
 
 	return &cli.Command{
-		Name:      "ohmyssh",
-		Usage:     "SSH connection manager with an interactive host browser",
-		Version:   constant.Version(),
-		ArgsUsage: "[host]",
-		Description: `ohmyssh reads hosts from your OpenSSH config and connects to them over SSH.
-
-Run it without arguments to browse hosts interactively, or name a host to
-connect straight away:
-
-  ohmyssh                  browse hosts and connect with enter
-  ohmyssh web1             open a shell on web1
-  ohmyssh web1 -- uptime   run one command under a PTY
-  ohmyssh exec web1 -- df -h   run one command without a PTY
-  ohmyssh put web1 ./out/ /opt/app/   copy files to web1
-
-A password can be piped in rather than passed as an argument, which keeps it out
-of the process list and the shell's history:
-
-  echo "$PW" | ohmyssh --password-stdin web1 -- uptime
-
-Host key verification uses trust-on-first-use against ~/.ssh/known_hosts:
-unknown hosts are recorded, changed keys are rejected.`,
-		Flags:  globalFlags(),
-		Before: setupLogging,
-		Action: rootAction(connect),
+		Name:        "ohmyssh",
+		Usage:       m.RootUsage,
+		Version:     constant.Version(),
+		ArgsUsage:   "[host]",
+		Description: m.RootDescription,
+		Flags:       globalFlags(),
+		Before:      setupLogging,
+		Action:      rootAction(connect),
 		Commands: []*cli.Command{
 			listCommand(connect),
 			connectCommand(connect),

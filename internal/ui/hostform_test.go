@@ -75,7 +75,7 @@ func (f *addForm) openForm(t *testing.T) {
 
 // fill types a value into each field in turn, walking the form the way tab does.
 func (f *addForm) fill(values map[int]string) {
-	for i := range formLabels {
+	for i := range formLabels() {
 		if i > 0 {
 			f.send(key(tea.KeyTab))
 		}
@@ -198,7 +198,7 @@ func TestFormTabWalksTheFields(t *testing.T) {
 	f := newAddForm(t, testHosts())
 	f.openForm(t)
 
-	for i := range formLabels {
+	for i := range formLabels() {
 		if f.model.form.focus != i {
 			t.Fatalf("after %d tabs the focus is on field %d, want %d", i, f.model.form.focus, i)
 		}
@@ -208,7 +208,7 @@ func TestFormTabWalksTheFields(t *testing.T) {
 		t.Errorf("tab past the last field left the focus on %d, want it back at the first", f.model.form.focus)
 	}
 
-	for i := len(formLabels) - 1; i >= 0; i-- {
+	for i := len(formLabels()) - 1; i >= 0; i-- {
 		f.send(key(tea.KeyShiftTab))
 		if f.model.form.focus != i {
 			t.Fatalf("shift+tab left the focus on %d, want %d", f.model.form.focus, i)
@@ -439,7 +439,7 @@ func TestFormLinesFollowTheFocusWhenThereIsNoRoom(t *testing.T) {
 	if got := len(strings.Split(cramped, "\n")); got != 3 {
 		t.Fatalf("drew %d lines, want 3", got)
 	}
-	if !strings.Contains(cramped, formLabels[formTags].label) {
+	if !strings.Contains(cramped, formLabels()[formTags].label) {
 		t.Errorf("the field being typed on is not in the window:\n%s", cramped)
 	}
 	if strings.Contains(cramped, "─") {
