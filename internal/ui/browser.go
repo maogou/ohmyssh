@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	
+
 	"github.com/maogou/ohmyssh/internal/config"
 	"github.com/maogou/ohmyssh/internal/pkg/appdir"
 	"github.com/maogou/ohmyssh/internal/pkg/zlog"
@@ -90,10 +90,10 @@ type BrowserOptions struct {
 // browser's.
 type RemoveHostFunc func(ctx context.Context, host config.SSHHost) ([]config.SSHHost, error)
 
-// browserMode is which of the four things the browser is showing. The file view
-// and the form are whole frames of their own rather than regions of the list's,
-// and the confirm question is the list with a different line under it, so the
-// four are told apart here rather than inside the renderer.
+// browserMode is which of the five things the browser is showing. The file
+// view, the form and the help are whole frames of their own rather than regions
+// of the list's, and the confirm question is the list with a different line
+// under it, so the five are told apart here rather than inside the renderer.
 type browserMode int
 
 const (
@@ -104,6 +104,10 @@ const (
 	// row the user is asking to delete is still on screen, under the cursor, which
 	// is what makes the question answerable.
 	modeConfirm
+	// modeHelp is the keys of the view it was opened from, which helpFor still
+	// names: the help is a frame of its own, but it is about one of the other
+	// views, and closing it goes back to that one.
+	modeHelp
 )
 
 // sessionFinishedMsg reports the outcome of a session that ran in the terminal.
@@ -185,8 +189,11 @@ type browserModel struct {
 	// file the service writes: the ssh config is the user's.
 	remove    RemoveHostFunc
 	hostsFile string
-	// mode is which of the four things the browser is showing.
+	// mode is which of the five things the browser is showing.
 	mode browserMode
+	// helpFor is the view the help describes and goes back to. It is only read
+	// while mode is modeHelp, which is also the only way it is set.
+	helpFor browserMode
 	// pending is the host the confirm question is about. It is set when the
 	// question is put up and cleared when it is answered, so a question can never
 	// outlive the row it was asked about.
@@ -365,8 +372,11 @@ func (m *browserModel) reveal(alias string) {
 }
 
 func (m browserModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// The file view and the form own the frame and nearly every key in it while
-	// either is up.
+	// The help, the file view and the form own the frame and nearly every key in
+	// it while any of them is up.
+	if m.mode == modeHelp {
+		return m.handleHelpKey(msg)
+	}
 	if m.mode == modeFiles {
 		return m.handleFilesKey(msg)
 	}
@@ -400,6 +410,13 @@ func (m browserModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.filter.Value() == "" {
 			return m.askRemove()
 		}
+
+	case "?":
+		// Unlike the capitals above, this one needs no empty filter to mean its
+		// binding: a query with a question mark in it matches no host, so the
+		// character is not one the filter can use, and "?" is what everything
+		// else that scrolls offers for help.
+		return m.openHelp()
 
 	case "U", "D":
 		// Shifted, and only on a bare one. A plain "u" or "d" would swallow the
@@ -474,9 +491,18 @@ func (m browserModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // frame and nearly every key in it; the one thing the browser keeps for itself
 // is quitting, which means the same in every mode.
 func (m browserModel) handleFilesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == "ctrl+c" {
+	switch msg.String() {
+	case "ctrl+c":
 		m.quit = true
 		return m, tea.Quit
+
+	case "?":
+		// Only while the filter line is down. While it is up the keyboard is the
+		// filter's, and a "?" there is a character like any other — the same
+		// reason the list's capitals wait for an empty filter.
+		if !m.files.filtering {
+			return m.openHelp()
+		}
 	}
 
 	var cmd tea.Cmd
@@ -485,6 +511,39 @@ func (m browserModel) handleFilesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.closeFiles(), cmd
 	}
 	return m, cmd
+}
+
+// openHelp shows the keys of the view it was opened from. That view is left
+// exactly as it was — the help is drawn over it rather than instead of it — so
+// closing the help puts the user back where they were, cursor and all.
+func (m browserModel) openHelp() (tea.Model, tea.Cmd) {
+	m.helpFor = m.mode
+	m.mode = modeHelp
+	return m, nil
+}
+
+// handleHelpKey answers a key while the help is up. Nothing in it reaches the
+// view underneath, since a key pressed over a screen of key bindings is a key
+// pressed by accident, and acting on the frame the user cannot see is the one
+// thing this screen could do wrong. ctrl+c still quits, as it does everywhere.
+func (m browserModel) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		m.quit = true
+		return m, tea.Quit
+
+	case "esc", "?":
+		m.mode = m.helpFor
+		// The list's filter is the one thing that had the keyboard before the
+		// help went up and gets it back after: its blink was dropped along with
+		// the other messages the help swallowed, and this is what puts the
+		// cursor back on the line.
+		if m.mode == modeList {
+			m.filter.Focus()
+		}
+		return m, nil
+	}
+	return m, nil
 }
 
 // openFiles shows the file view for the host under the cursor, with start as the
@@ -942,6 +1001,11 @@ func (m browserModel) View() string {
 	if m.quit {
 		return ""
 	}
+	// The help is drawn over the view it describes rather than into it, since it
+	// is about the keys of that view and not about its content.
+	if m.mode == modeHelp {
+		return m.helpView()
+	}
 	// The file view is a whole frame of its own — its own header, its own
 	// two-pane grid, its own footer — so it is handed the frame rather than
 	// fitted into a region of this one.
@@ -1226,6 +1290,8 @@ func (m browserModel) footer(width int) string {
 		segments = formFooterSegments()
 	case modeConfirm:
 		segments = confirmFooterSegments()
+	case modeHelp:
+		segments = helpFooterSegments()
 	}
 	return fitSegments(segments, width)
 }
@@ -1234,34 +1300,30 @@ func (m browserModel) footer(width int) string {
 // comes first because the question ends "y/n" and the bar reads in the same
 // order; cancelling is the answer that needs no hint, since every key that is
 // not a "y" is one.
-func confirmFooterSegments() []string {
-	return []string{
-		keyHint("y", "delete"),
-		keyHint("n", "cancel"),
+func confirmFooterSegments() []binding {
+	return []binding{
+		{"y", "delete"},
+		{"n", "cancel"},
 	}
 }
 
 // fitSegments is the bar itself: the hints, in the order they are given up when
 // the line runs out of room.
-func fitSegments(segments []string, width int) string {
+func fitSegments(segments []binding, width int) string {
 	// Two columns of gap rather than three: at the usual 80-column terminal it
 	// is the difference between the whole list of bindings fitting and the last
 	// one being given up.
 	const separator = "  "
 
-	line := segments[0]
+	line := keyHint(segments[0])
 	for _, segment := range segments[1:] {
-		if lipgloss.Width(line)+len(separator)+lipgloss.Width(segment) > width {
+		hint := keyHint(segment)
+		if lipgloss.Width(line)+len(separator)+lipgloss.Width(hint) > width {
 			break
 		}
-		line += separator + segment
+		line += separator + hint
 	}
 	return line
-}
-
-// keyHint is one binding in a key hint bar.
-func keyHint(key, hint string) string {
-	return keyStyle.Render(key) + " " + hintStyle.Render(hint)
 }
 
 // footerSegments are the list's bindings, in the order they are given up when
@@ -1269,29 +1331,36 @@ func keyHint(key, hint string) string {
 //
 // Every binding here is discoverable only by reading this bar, except the filter
 // hint, which the filter box spells out in its own placeholder on the line above
-// — so it is last, and it is what pays for the delete binding at 80 columns.
+// — so it is last, and it is what pays for the help binding at 80 columns. The
+// help goes ahead of it because there is nothing else on screen that says how
+// to reach the list of keys the bar itself is too short to hold; the filter's
+// box, two lines up, is that list for the filter.
+//
+// The move hint is written without its slash and the transfer hint as "files"
+// rather than "transfer" for one reason: at 80 columns with a host service
+// attached, that is what makes room for the help without giving up a binding.
 // The transfer keys are one segment rather than two so that they stay together
 // when the line is short; which of the two opens which pane is said where it
 // matters, in the file view's own bar. The add and delete bindings are capital
 // letters the user cannot guess, so they are kept ahead of everything below
 // them.
-func (m browserModel) footerSegments() []string {
-	segments := []string{
-		keyHint("enter", "connect"),
-		keyHint("↑/↓", "move"),
-		keyHint("esc", "clear"),
-		keyHint("q", "quit"),
+func (m browserModel) footerSegments() []binding {
+	segments := []binding{
+		{"enter", "connect"},
+		{"↑↓", "move"},
+		{"esc", "clear"},
+		{"q", "quit"},
 	}
 	if m.add != nil {
-		segments = append(segments, keyHint("A", "add"))
+		segments = append(segments, binding{"A", "add"})
 	}
 	if m.remove != nil {
-		segments = append(segments, keyHint("X", "delete"))
+		segments = append(segments, binding{"X", "delete"})
 	}
-	segments = append(segments, keyHint("U/D", "transfer"))
-	// Last, and so the first to go: the filter box says the same thing in its own
-	// placeholder, two lines above, whatever the terminal's width.
-	return append(segments, keyHint("type", "filter"))
+	segments = append(segments,
+		binding{"U/D", "files"},
+		binding{"?", "help"})
+	return append(segments, binding{"type", "filter"})
 }
 
 // ---------------------------------------------------------------------------

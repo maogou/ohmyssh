@@ -56,6 +56,13 @@ user or tag, move with `↑`/`↓`, and press `enter` to connect. The session ta
 over the terminal; when it ends you land back on the list with the outcome in
 the status line, ready for the next host.
 
+The list of keys along the bottom of the screen is a budget: on a narrow
+terminal it gives up its rightmost hints, and the ones that go first are the ones
+the screen itself already says. `?` is what to press for the whole list, for
+whichever view is on screen — the host list's keys from the host list, the file
+view's from the file view — and it is where the bindings the bar has no room for
+are written down, along with where a host added with `A` is written.
+
 `U` and `D` open a two-pane file view on the host under the cursor: the local
 files on the left, the host's home directory on the right. `U` starts with the
 cursor in the left pane, `D` in the right, but both open the same view — which
@@ -68,6 +75,7 @@ tab          switch panes        enter   directory: walk in — file: send it
 ← h          up a level          /       filter the pane you are in
 pgup pgdown  a page at a time    r       re-read the pane you are in
 g G          first, last         esc     stop a transfer, then leave
+?            the whole list
 ```
 
 The entry under the cursor goes to whatever the *other* pane is showing, under
@@ -111,8 +119,11 @@ meant. [Adding and removing hosts](#adding-and-removing-hosts) has the details.
 `A`, `U`, `D` and `X` are capital letters for a reason, and they follow `q`'s
 rule: they act on an empty filter only. A plain `a`, `u`, `d` or `x` would
 otherwise be swallowed out of the first host name you searched for that starts
-with one. The file view never prompts for a password — it owns the terminal — so
-a host with no saved password is told to connect to it once from a shell instead.
+with one. `?` needs no such rule, and is a binding whatever the filter says: no
+host has a question mark in a name, an address, a user or a tag, so the character
+is no use to a search. The file view never prompts for a password — it owns the
+terminal — so a host with no saved password is told to connect to it once from a
+shell instead.
 
 Unlisted targets work too, in the shape ssh accepts:
 

@@ -166,8 +166,8 @@ func TestBrowserHintsSurviveASessionStatus(t *testing.T) {
 		view := updated.(browserModel).View()
 
 		for _, binding := range []string{
-			"enter", "connect", "↑/↓", "move", "type", "filter", "esc", "clear", "q", "quit",
-			"U/D", "transfer",
+			"enter", "connect", "↑↓", "move", "type", "filter", "esc", "clear", "q", "quit",
+			"U/D", "files", "?", "help",
 		} {
 			if !strings.Contains(view, binding) {
 				t.Errorf("%s: hint %q missing from the view:\n%s", name, binding, view)
@@ -188,8 +188,8 @@ func TestBrowserHintsStayOnTheLastLine(t *testing.T) {
 	// case where anything has to be given up at 80 columns. All of them are keys
 	// the user cannot guess from the screen; the filter hint is the one that can be
 	// read off the filter box's own placeholder two lines above, so it is the one
-	// that pays for the delete binding — hence last, since the bar gives up its
-	// segments from the right.
+	// that pays for the rest — hence last, since the bar gives up its segments from
+	// the right.
 	noService := BrowserOptions{Hosts: hosts}
 	withService := BrowserOptions{
 		Hosts:  hosts,
@@ -197,9 +197,12 @@ func TestBrowserHintsStayOnTheLastLine(t *testing.T) {
 		Remove: func(context.Context, config.SSHHost) ([]config.SSHHost, error) { return nil, nil },
 	}
 
-	// Without a host service the bar comes to 69 columns and fits entire. With one
-	// it comes to 86, and something has to be given up — the filter hint, whose text
-	// the filter box spells out in its own placeholder two lines above.
+	// Without a host service the bar comes to 76 columns and fits entire. With one
+	// it comes to 77 of the 78 an 80-column terminal leaves once the margin is
+	// paid for, and something has to be given up — the filter hint, whose text the
+	// filter box spells out in its own placeholder two lines above. That one
+	// column of slack is the whole reason the help binding is on this bar at all at
+	// the usual terminal width.
 	cases := map[string]struct {
 		opts       BrowserOptions
 		wantFilter bool
@@ -221,7 +224,7 @@ func TestBrowserHintsStayOnTheLastLine(t *testing.T) {
 		// them: a binding that is only ever listed when the list is short is one the
 		// user cannot discover.
 		last := lines[len(lines)-1]
-		want := []string{"connect", "move", "quit", "transfer"}
+		want := []string{"connect", "move", "quit", "files", "help"}
 		if tc.opts.Add != nil {
 			want = append(want, "add")
 		}

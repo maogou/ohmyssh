@@ -1257,47 +1257,42 @@ func (m filesModel) statusLine(width int) string {
 // which trims the bar from the right on a narrow terminal instead of wrapping it
 // onto a second line.
 func (m filesModel) footer(width int) string {
-	const separator = "  "
-
-	segments := m.footerSegments()
-	line := segments[0]
-	for _, segment := range segments[1:] {
-		if lipgloss.Width(line)+len(separator)+lipgloss.Width(segment) > width {
-			break
-		}
-		line += separator + segment
-	}
-	return line
+	// The bar is the same one the host list draws, so it is fitted the same way
+	// and from the same kind of bindings.
+	return fitSegments(m.footerSegments(), width)
 }
 
 // footerSegments are the bindings of whichever state the view is in, in the
 // order they are given up when the line runs out of room.
-func (m filesModel) footerSegments() []string {
-	key := func(key, hint string) string {
-		return keyStyle.Render(key) + " " + hintStyle.Render(hint)
-	}
-
+//
+// esc is the one that is last and so the first to go, for the reason it is
+// first in the help: pressing it is what a user does when they do not know what
+// else to press, and by then they have found it. The filter is not offered
+// while it is up, and neither is anything but cancelling while a transfer is
+// running: those bars are about the one thing the view is doing.
+func (m filesModel) footerSegments() []binding {
 	switch {
 	case m.filtering:
-		return []string{
-			key("type", "filter"),
-			key("enter", "keep"),
-			key("esc", "clear"),
+		return []binding{
+			{"type", "filter"},
+			{"enter", "keep"},
+			{"esc", "clear"},
 		}
 	case m.transferring():
-		return []string{
-			key("esc", "cancel"),
-			key("ctrl+c", "quit"),
+		return []binding{
+			{"esc", "cancel"},
+			{"ctrl+c", "quit"},
 		}
 	}
 
-	return []string{
-		key("tab", "pane"),
-		key("↑/↓", "move"),
-		key("enter", "send"),
-		key("c", "copy"),
-		key("/", "find"),
-		key("r", "reload"),
-		key("esc", "back"),
+	return []binding{
+		{"tab", "pane"},
+		{"↑↓", "move"},
+		{"enter", "send"},
+		{"c", "copy"},
+		{"/", "find"},
+		{"r", "reload"},
+		{"?", "help"},
+		{"esc", "back"},
 	}
 }

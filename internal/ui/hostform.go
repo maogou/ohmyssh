@@ -207,10 +207,10 @@ func (f hostForm) line(i int) string {
 // formFooterSegments are the form's bindings. Saving is the one that has to
 // survive a narrow terminal, so it is first; ctrl+c is not listed because the
 // bar cannot wrap and a form is not where it is looked for.
-func formFooterSegments() []string {
-	return []string{
-		keyHint("enter", "save"),
-		keyHint("tab", "field"),
-		keyHint("esc", "cancel"),
+func formFooterSegments() []binding {
+	return []binding{
+		{"enter", "save"},
+		{"tab", "field"},
+		{"esc", "cancel"},
 	}
 }
