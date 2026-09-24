@@ -17,7 +17,17 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # 同一套用例在两个系统上各跑一遍:一套代码在两个平台上走的是不同的实现 ——
+    # stdin 的取消在 Linux 上是 epoll、在 macOS 上是 kqueue,窗口大小变化靠各自的
+    # 信号,文件权限也各按各的语义 —— 一个平台上过不了的竞态,在另一个平台上可能
+    # 根本不出现,只在另一台上试是发现不了的。
+    strategy:
+      # 一个平台挂了不取消另一个:"只有 macOS 挂"本身就是最有用的那条信息,
+      # 而 fail-fast 正好会把这条信息取消掉。
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -31,6 +41,8 @@ jobs:
         run: go test -race -cover ./...
 
   lint:
+    # 只在 Linux 上跑:静态检查不看操作系统,没必要为此排 macOS runner 的队。
+    # (私有仓库的 macOS 分钟数按十倍计,这一条也不便宜。)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
