@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 200" width="740" height="200" role="img" aria-labelledby="t">
+  <title id="t">ohmyssh</title>
+  <desc>The ohmyssh mark beside the name, for a light background.</desc>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6C4FD8"/>
+      <stop offset="1" stop-color="#4C1D95"/>
+    </linearGradient>
+    <mask id="keyhole" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <circle cx="340" cy="242" r="18" fill="#000"/>
+      <path d="M332 254 L348 254 L352 286 L328 286 Z" fill="#000"/>
+    </mask>
+  </defs>
+
+  <!-- The mark, at a fifth of the size the file of its own draws it at. -->
+  <g transform="translate(20 20) scale(0.3125)">
+    <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+    <path d="M148 138 L248 256 L148 374" fill="none" stroke="#EDE9FE"
+          stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="292" y="208" width="96" height="96" rx="22" fill="#fff" mask="url(#keyhole)"/>
+  </g>
+
+  <!-- Monospace, like the prompt the name comes from. -->
+  <text x="212" y="140" font-family="Menlo, ui-monospace, SFMono-Regular, Consolas, monospace"
+        font-size="116" font-weight="700" fill="#4C1D95">ohmyssh</text>
+</svg>

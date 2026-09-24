@@ -1,0 +1,44 @@
+# 每次 push 和 PR 都跑一遍 make test 与 make lint 做的事,
+# 让"本地能过"和"CI 能过"是同一件事。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一个分支连续推送时取消上一次:旧提交没必要继续占着 runner。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          # Go 版本以 go.mod 为准,不在这里再写一遍
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      # -race 与 make test 一致:项目里 goroutine 不少(传输进度、SIGWINCH、bubbletea 的 Cmd)
+      - name: Test
+        run: go test -race -cover ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          # 与 Makefile 的 GOLANGCI_VERSION 钉在同一个版本上:改一处要改两处。
+          # golangci-lint 的依赖图会污染主模块,所以两边都不走 go.mod。
+          version: v2.13.2

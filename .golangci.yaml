@@ -1,0 +1,53 @@
+version: "2"
+run:
+  timeout: 5m
+  concurrency: 4
+  # 本项目的测试是真实的(含 in-process SSH 服务器),和源码一起检查
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - errcheck       # 检查未处理 error
+    - staticcheck    # 超全面语义/潜在bug检查
+    - gosec          # 安全漏洞检查
+    - ineffassign    # 无效赋值
+    - unused         # 未使用变量/函数/常量
+    - unparam        # 未使用参数
+    - gocyclo        # 函数复杂度检查
+  exclusions:
+    rules:
+      # ohmyssh 的职责就是打开用户指定的文件(ssh config、known_hosts、凭据库),
+      # 并连接用户指定的主机。G304/G704 描述的正是这些功能本身,不是疏漏。
+      - linters: [gosec]
+        text: G304|G704
+      # 以下三条同样是功能而非缺陷:
+      #   G106 —— --insecure 是文档化的选项,用户显式要求跳过主机密钥校验
+      #   G204 —— 远端命令本来就是变量
+      #   G117 —— 凭据库要序列化的字段,名字就叫 Password
+      - linters: [gosec]
+        text: G106|G204|G117
+      # 测试专用的几处:
+      #   G101 —— 表驱动用例里的 token 是命令行参数,长得像登录信息而已
+      #   G115 —— 把远端退出码窄化成 uint32 是协议要求的
+      #   G122 —— 在 WalkDir 回调里读文件,测试的临时目录里没有 TOCTOU 可言
+      #   G301/G302/G306 —— 为验证权限拒绝而故意构造的宽松权限,以及测试夹具
+      # 测试不对外提供任何东西,这些都不是缺陷。
+      - linters: [gosec]
+        path: _test\.go
+        text: G101|G115|G122|G301|G302|G306
+      # 下载时在本地建目录用 0755:与 MkidrAll 在远端建目录的做法一致,也和
+      # mkdir -p / scp -r 留给用户的一致,真正落地的权限由 umask 决定。
+      # 文件本身是按 0666&umask 创建的,单独把目录收窄到 0750 挡不住任何东西。
+      - linters: [gosec]
+        path: internal/sshclient/transfer\.go
+        text: G301
+      # 测试的清理路径上不检查 Close 的返回值是惯例写法。
+      # 生产代码里的 Close 已按仓库既有写法用 `_ =` 显式丢弃,故不在此豁免。
+      - linters: [errcheck]
+        path: _test\.go
+        text: Close
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

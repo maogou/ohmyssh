@@ -1,0 +1,13 @@
+.idea/
+.vscode/
+*.exe
+*.exe~
+*.log
+
+# Makefile 的产物。开头的 / 不可省:否则会连 cmd/ohmyssh/ 目录一起忽略。
+/ohmyssh
+coverage.out
+coverage.html
+
+# make lint 装在这里的 golangci-lint
+/.bin/
