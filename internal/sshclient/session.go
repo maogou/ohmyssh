@@ -114,23 +114,56 @@ func (s *InteractiveSession) Run() error {
 		zlog.L().Debug().Int("width", width).Int("height", height).Str("term", termType()).Msg("pty requested")
 	}
 
-	// x/crypto/ssh copies stdin into the session channel on a goroutine of its
-	// own, and that goroutine is still blocked reading the terminal after the
-	// session ends. Left running it races whoever owns the terminal next for the
-	// following keystroke — in the host browser, the first key pressed after a
-	// session returns is swallowed. Wrapping stdin lets us unblock it.
+	// stdin is read through a pipe of our own rather than handed to x/crypto/ssh
+	// as it is. That package copies whatever Stdin holds into the session channel
+	// on a goroutine of its own and never joins it, so a session that has ended
+	// can still be reading the local terminal: it takes the keystroke meant for
+	// whoever owns the terminal next — in the host browser, the first key pressed
+	// after a session returns — and it reads a file the caller may by then be
+	// closing, which is a data race rather than only a lost key.
+	//
+	// Owning the read is what makes it ours to stop *and to wait for*: Run does
+	// not return while anything of ours is still reading the caller's stdin.
+	// What ssh copies from is then an in-process pipe, which it can read as long
+	// as it likes without touching anything the caller owns.
 	stopStdin := func() {}
 	if cancelable, err := cancelreader.NewReader(s.stdin); err == nil {
+		reader, writer := io.Pipe()
+		pump := make(chan struct{})
+		go func() {
+			defer close(pump)
+
+			_, err := io.Copy(writer, cancelable)
+			if errors.Is(err, cancelreader.ErrCanceled) {
+				// The session is ending rather than the input: end of input is
+				// what the far side of this pipe should see.
+				err = nil
+			}
+			_ = writer.CloseWithError(err)
+		}()
+
 		var once sync.Once
 		stopStdin = func() {
 			once.Do(
 				func() {
-					cancelable.Cancel()
+					// The writer first: it releases a pump that is handing a
+					// buffer over rather than reading, and it is what tells a
+					// session still copying from the pipe that stdin has ended.
+					_ = writer.CloseWithError(io.EOF)
+					// Cancel reports whether it managed to interrupt a read in
+					// flight, and that is what makes waiting safe. An input it
+					// cannot interrupt — anything that is not a file, where it
+					// can only refuse later reads — would leave the pump parked
+					// in the read it is already in, and Run waiting on it for
+					// good.
+					if cancelable.Cancel() {
+						<-pump
+					}
 					_ = cancelable.Close()
 				},
 			)
 		}
-		session.Stdin = cancelable
+		session.Stdin = reader
 	} else {
 		zlog.L().Debug().Err(err).Msg("stdin cannot be canceled; a key may be lost after this session")
 		session.Stdin = s.stdin
