@@ -195,10 +195,19 @@ func TestRunRefusesALanguageItDoesNotHave(t *testing.T) {
 // The complaint is written in the language the environment asks for rather than
 // in the one that was refused — a French LANG is a reason to answer in English,
 // not a reason to answer in French, which this program does not have.
+//
+// LANG is the last variable that can decide, so setting it only says what this
+// test means when the three above it are empty — and they have to be emptied
+// rather than merely not set here, because the process doing the asking inherits
+// the environment it is run in. A runner carrying its own LC_ALL or LC_MESSAGES
+// (the macOS one does) would otherwise decide instead of this test's LANG, and
+// the test would report a language mismatch that the program does not have.
 func TestTheComplaintIsWrittenInALanguageOhmysshHas(t *testing.T) {
 	t.Cleanup(func() { i18n.Setup(i18n.English) })
+	for _, name := range []string{"OHMYSSH_LANG", "LC_ALL", "LC_MESSAGES"} {
+		t.Setenv(name, "")
+	}
 	t.Setenv("LANG", "zh_CN.UTF-8")
-	t.Setenv("OHMYSSH_LANG", "")
 
 	err := run(context.Background(), []string{"ohmyssh", "--lang", "fr"})
 	if err == nil {
