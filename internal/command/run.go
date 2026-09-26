@@ -53,7 +53,7 @@ func Run(args []string) int {
 // Tests call New directly and so never get here, which is what keeps them
 // reading the English they were written against.
 func run(ctx context.Context, args []string) error {
-	lang, err := prescanLanguage(args, os.Getenv)
+	_, err := prescanLanguage(args, os.Getenv)
 
 	// Language is already installed by prescanLanguage. The error is written
 	// in whichever language the environment asks for, since if an explicit
