@@ -62,7 +62,7 @@ type UnsupportedError struct {
 }
 
 func (e *UnsupportedError) Error() string {
-	return fmt.Sprintf("unsupported language %q", e.Value)
+	return fmt.Sprintf(M().UnsupportedLanguage, e.Value, Names())
 }
 
 // Resolve decides which language to use.
