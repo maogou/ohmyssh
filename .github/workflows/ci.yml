@@ -17,16 +17,18 @@ permissions:
 
 jobs:
   test:
-    # 同一套用例在两个系统上各跑一遍:一套代码在两个平台上走的是不同的实现 ——
-    # stdin 的取消在 Linux 上是 epoll、在 macOS 上是 kqueue,窗口大小变化靠各自的
-    # 信号,文件权限也各按各的语义 —— 一个平台上过不了的竞态,在另一个平台上可能
-    # 根本不出现,只在另一台上试是发现不了的。
+    # 同一套用例在三个系统上各跑一遍:一套代码在三个平台上走的是不同的实现 ——
+    # stdin 的取消在 Linux 上是 epoll、在 macOS 上是 kqueue、在 Windows 上只能
+    # 对控制台句柄下手(管道式的 stdin 取消不了,那条用例在那边跳过),窗口大小变
+    # 化靠各自的信号,权限位在 Windows 上只剩一个只读属性,路径分隔符也各按各的
+    # —— 一个平台上过不了的竞态,在另一个平台上可能根本不出现,只在另一台上试
+    # 是发现不了的。
     strategy:
       # 一个平台挂了不取消另一个:"只有 macOS 挂"本身就是最有用的那条信息,
       # 而 fail-fast 正好会把这条信息取消掉。
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +38,9 @@ jobs:
           go-version-file: go.mod
       - name: Build
         run: go build ./...
-      # -race 与 make test 一致:项目里 goroutine 不少(传输进度、SIGWINCH、bubbletea 的 Cmd)
+      # -race 与 make test 一致:项目里 goroutine 不少(传输进度、SIGWINCH、bubbletea 的 Cmd)。
+      # Windows 上 race 需要能用的 C 工具链(windows-latest 镜像自带 MSYS2 的 mingw);
+      # 万一那边连测试二进制都启动不了,把这一行的 -race 去掉即可,其余不动。
       - name: Test
         run: go test -race -cover ./...
 

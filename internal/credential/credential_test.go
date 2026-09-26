@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -36,6 +37,25 @@ func isolate(t *testing.T) (store, legacy string) {
 
 	return filepath.Join(home, ".ohmyssh", "credentials.json"),
 		filepath.Join(config, "ohmyssh", "credentials.json")
+}
+
+// wantMode asserts the mode of the store or of the directory holding it. Mode
+// bits are a Unix idea: Windows applies a mode as the read-only attribute and
+// nothing else, which is what the package comment says leaves the encryption as
+// the whole of the protection there, so the mode is asserted where the platform
+// has one to report.
+func wantMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if perm := info.Mode().Perm(); perm != want {
+		t.Errorf("%s mode = %o, want %o", path, perm, want)
+	}
 }
 
 // writeStore puts a store holding password at path, encrypted the way a
@@ -113,21 +133,8 @@ func TestStoreIsPrivateAndParsable(t *testing.T) {
 		t.Fatalf("set: %v", err)
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat store: %v", err)
-	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("store mode = %o, want 600", perm)
-	}
-
-	dirInfo, err := os.Stat(filepath.Dir(path))
-	if err != nil {
-		t.Fatalf("stat store dir: %v", err)
-	}
-	if perm := dirInfo.Mode().Perm(); perm != 0o700 {
-		t.Errorf("store directory mode = %o, want 700", perm)
-	}
+	wantMode(t, path, 0o600)
+	wantMode(t, filepath.Dir(path), 0o700)
 
 	// The file stays readable JSON so it can be inspected and repaired by hand.
 	var records map[string]record
@@ -276,13 +283,7 @@ func TestSaveTightensLoosePermissions(t *testing.T) {
 		t.Fatalf("set again: %v", err)
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat: %v", err)
-	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("store mode = %o after rewrite, want 600", perm)
-	}
+	wantMode(t, path, 0o600)
 }
 
 // Nothing partial is left beside the store. A temporary file that outlived the

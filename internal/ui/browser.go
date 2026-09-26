@@ -1206,6 +1206,11 @@ var homeDir, _ = os.UserHomeDir()
 // abbreviated shortens the user's home directory to ~, which is how the rest of
 // the world writes it and a dozen columns shorter than the path — the difference
 // between the header saying which file a host came from and not.
+//
+// What follows the ~ is written with forward slashes on every platform, Windows
+// included: the shorthand is a Unix one already, ohmyssh's own help and README
+// spell these paths that way, and a path in a header is there to be recognized
+// rather than pasted into a shell.
 func abbreviated(path string) string {
 	if path == "" || homeDir == "" {
 		return path
@@ -1214,7 +1219,7 @@ func abbreviated(path string) string {
 	if !found {
 		return path
 	}
-	return "~" + rest
+	return "~" + filepath.ToSlash(rest)
 }
 
 // sourceHint names the files the hosts came from: usually the user's ssh config

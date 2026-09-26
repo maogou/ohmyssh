@@ -275,7 +275,9 @@ func TestFormWritesWhatWasTyped(t *testing.T) {
 	if !ok || host.Name != "web2" {
 		t.Errorf("selected = %+v, want the host just added", host)
 	}
-	if !strings.Contains(f.model.status, "added web2") || !strings.Contains(f.model.status, f.hostsFile) {
+	// The file as the browser writes it, which is abbreviated: the status line
+	// is the user's view of the path, not the one the file operations use.
+	if !strings.Contains(f.model.status, "added web2") || !strings.Contains(f.model.status, abbreviated(f.hostsFile)) {
 		t.Errorf("status = %q, want it to name the host and the file it went to", f.model.status)
 	}
 	if f.model.failed {
@@ -388,8 +390,8 @@ func TestFormNamesWhereItWrites(t *testing.T) {
 	if !strings.Contains(view, "new host") {
 		t.Errorf("the form's header does not say what it is:\n%s", view)
 	}
-	if !strings.Contains(view, f.hostsFile) {
-		t.Errorf("the form's header does not name %s:\n%s", f.hostsFile, view)
+	if !strings.Contains(view, abbreviated(f.hostsFile)) {
+		t.Errorf("the form's header does not name %s:\n%s", abbreviated(f.hostsFile), view)
 	}
 	// The list's own header is replaced rather than stacked on top of.
 	if strings.Contains(view, " of ") {

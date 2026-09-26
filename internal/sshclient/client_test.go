@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -346,6 +347,24 @@ func dialTestHost(t *testing.T, addr, keyPath, knownHosts string) (*Client, erro
 	})
 }
 
+// wantMode asserts the mode of a file this package writes. Mode bits are a Unix
+// idea: Windows applies a mode as the read-only attribute and nothing else, so
+// every file there reads back 0666 and every directory 0777 whatever was asked
+// for. The mode is therefore asserted where the platform has one to report.
+func wantMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if perm := info.Mode().Perm(); perm != want {
+		t.Errorf("%s mode = %o, want %o", path, perm, want)
+	}
+}
+
 // A host with nothing to authenticate with is reported as such. That error path
 // releases the ssh-agent connection, and it is easy to arm that release with a
 // nil — a return statement assigns to the named result before a deferred call
@@ -354,7 +373,12 @@ func TestDialReportsAHostWithNoAuthenticationMethod(t *testing.T) {
 	// An empty home directory is what leaves the chain empty: no identity file
 	// on the host, no default key to find under ~/.ssh, and no agent to ask. It
 	// also keeps the test from depending on the keys the machine happens to hold.
-	t.Setenv("HOME", t.TempDir())
+	// Both names are set because os.UserHomeDir reads HOME everywhere but
+	// Windows, where it reads USERPROFILE — set only on Unix, the real profile
+	// would answer there and its keys would fill the chain this test empties.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	host := config.SSHHost{Name: "lonely", Hostname: "lonely.example.com"}
 	_, err := Dial(context.Background(), host, DialOptions{DisableAgent: true})
@@ -1000,13 +1024,7 @@ func TestTrustOnFirstUseRecordsHostKey(t *testing.T) {
 	_ = client2.Close()
 
 	// Permissions must stay private.
-	info, err := os.Stat(knownHosts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("known_hosts mode = %o, want 600", perm)
-	}
+	wantMode(t, knownHosts, 0o600)
 }
 
 // A host whose key changed must be rejected rather than silently trusted.
@@ -1152,7 +1170,20 @@ func TestInteractiveSessionPropagatesExitStatus(t *testing.T) {
 // the session ends, and that stray read competes with whoever owns the terminal
 // next — in the host browser it swallowed the first key pressed after a session
 // returned, because the pump consumed the keystroke and failed to forward it.
+//
+// Stopping that read is something cancelreader can only do on Windows when the
+// input is the console itself: it opens CONIN$ to cancel the read, and anything
+// else — a pipe, which is what stdin is whenever it has been redirected, and
+// what this test uses to stand in for a terminal — falls back to a reader whose
+// Cancel reports it cancelled nothing and whose Close does nothing. The pump
+// stays parked in its read until the next input satisfies it, and that input is
+// lost. Nothing in this package can take it back, so the platform is where the
+// difference lies rather than in the code under test.
 func TestInteractiveSessionStopsReadingStdin(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a non-console reader cannot be interrupted on Windows")
+	}
+
 	pub, keyPath := newTestClientKey(t)
 	server, _ := newTestServer(t, pub)
 	knownHosts := filepath.Join(t.TempDir(), "known_hosts")
@@ -1163,8 +1194,8 @@ func TestInteractiveSessionStopsReadingStdin(t *testing.T) {
 	}
 	defer client.Close()
 
-	// A pipe stands in for the terminal: an *os.File, so it is cancellable the
-	// same way the real stdin is.
+	// A pipe stands in for the terminal: an *os.File, so on Unix it is
+	// cancellable the same way the real stdin is.
 	stdinRead, stdinWrite, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("pipe: %v", err)

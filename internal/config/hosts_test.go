@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -224,19 +225,27 @@ func TestAddHostCreatesTheFilePrivate(t *testing.T) {
 		t.Fatalf("AddHost: %v", err)
 	}
 
+	wantMode(t, path, 0o600)
+	wantMode(t, filepath.Dir(path), 0o700)
+}
+
+// wantMode asserts the mode of a file or directory ohmyssh created. Mode bits
+// are a Unix idea: Windows applies a mode as the read-only attribute and nothing
+// else, so every file there reads back 0666 and every directory 0777 whatever
+// was asked for, and what keeps ohmyssh's files to their owner on Windows is
+// where they live — under the user's own profile — rather than their mode. The
+// mode is therefore asserted where the platform has one to report.
+func wantMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return
+	}
 	info, err := os.Stat(path)
 	if err != nil {
-		t.Fatalf("stat: %v", err)
+		t.Fatalf("stat %s: %v", path, err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("hosts file mode = %o, want 600", perm)
-	}
-	dirInfo, err := os.Stat(filepath.Dir(path))
-	if err != nil {
-		t.Fatalf("stat dir: %v", err)
-	}
-	if perm := dirInfo.Mode().Perm(); perm != 0o700 {
-		t.Errorf("hosts directory mode = %o, want 700", perm)
+	if perm := info.Mode().Perm(); perm != want {
+		t.Errorf("%s mode = %o, want %o", path, perm, want)
 	}
 }
 

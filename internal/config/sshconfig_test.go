@@ -683,8 +683,13 @@ func TestExpandPath(t *testing.T) {
 	if got, want := ExpandPath("id_rsa"), filepath.Join(home, ".ssh/id_rsa"); got != want {
 		t.Errorf("ExpandPath(id_rsa) = %q, want %q", got, want)
 	}
-	if got := ExpandPath("/absolute/key"); got != "/absolute/key" {
-		t.Errorf("ExpandPath(/absolute/key) = %q, want unchanged", got)
+	// An absolute path is left alone. It is built from the platform's own root
+	// rather than written as /absolute/key, which is absolute only where a
+	// leading separator is the root of the filesystem: on Windows it names no
+	// drive, so ExpandPath treats it as relative like any other path.
+	absolute := filepath.Join(t.TempDir(), "key")
+	if got := ExpandPath(absolute); got != absolute {
+		t.Errorf("ExpandPath(%q) = %q, want unchanged", absolute, got)
 	}
 }
 
