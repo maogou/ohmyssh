@@ -91,13 +91,16 @@ func Resolve(getenv func(string) string, flagValue string) (Language, error) {
 
 	flagValue = strings.TrimSpace(flagValue)
 	if flagValue == "" || strings.EqualFold(flagValue, "auto") {
+		Setup(fromEnvironment)
 		return fromEnvironment, nil
 	}
 
 	lang, ok := parse(flagValue)
 	if !ok {
+		Setup(fromEnvironment)
 		return fromEnvironment, &UnsupportedError{Value: flagValue}
 	}
+	Setup(lang)
 	return lang, nil
 }
 
