@@ -105,7 +105,7 @@ func Resolve(getenv func(string) string, flagValue string) (Language, error) {
 }
 
 // environment is the language the environment asks for: the first variable that
-// is set decides, and a value ohmyssh does not have is English.
+// is set to a non-empty value decides, and a value ohmyssh does not have is English.
 func environment(getenv func(string) string) Language {
 	for _, name := range []string{"OHMYSSH_LANG", "LC_ALL", "LC_MESSAGES", "LANG"} {
 		value := strings.TrimSpace(getenv(name))
