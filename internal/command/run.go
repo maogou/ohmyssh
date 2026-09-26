@@ -55,12 +55,9 @@ func Run(args []string) int {
 func run(ctx context.Context, args []string) error {
 	lang, err := prescanLanguage(args, os.Getenv)
 
-	// Installed even when the flag was refused, and installed from what came
-	// back beside the error rather than from what was asked for: the complaint
-	// below has to be written in a language the person who typed it can read,
-	// and the one they named is by definition not one this program has.
-	i18n.Setup(lang)
-
+	// Language is already installed by prescanLanguage. The error is written
+	// in whichever language the environment asks for, since if an explicit
+	// --lang was refused, the flag named a language this program does not have.
 	if err != nil {
 		var unsupported *i18n.UnsupportedError
 		if !errors.As(err, &unsupported) {
